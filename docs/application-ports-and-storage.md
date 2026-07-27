@@ -153,11 +153,42 @@ recordingChunks
 - sequence
 - createdAt
 
+recordings
+- id
+- sessionId
+- createdAt
+- deletedAt
+- deletionReason
+- isFavorite
+- status
+
 partialRetries
 - id
 - originalSessionId
 - retryNumber
 ```
+
+## 12.3.1 RecordingMetadata
+
+```typescript
+type RecordingMetadata = {
+  id: string;
+  sessionId: string;
+  createdAt: string;
+  deletedAt: string | null;
+  deletionReason:
+    | "manual"
+    | "retention_expired"
+    | "recording_limit"
+    | null;
+  isFavorite: boolean;
+  status: "recording" | "completed" | "recoverable" | "deleted";
+};
+```
+
+通常の保存上限カウントには、`status: "completed"` かつ `deletedAt: null` の録画だけを含める。
+
+`status: "recoverable"` の録画は復旧候補として別枠管理し、20本上限には含めない。
 
 ## 12.4 トランザクション
 
@@ -184,5 +215,30 @@ partialRetries
 セッション、自己評価、状態、分析の保存を可能な限り一貫させる。
 
 録画チャンク保存は、会話中に独立した小さなトランザクションで逐次実行する。
+
+### 録画20本上限保存
+
+個人用MVPでは、端末内へ保存する完了済み録画を最大20本に制限する。
+
+新しい録画保存時の順序は次とする。
+
+1. 新しい録画メタデータと録画チャンクを保存する。
+2. 完了済み録画数が20本を超えるか確認する。
+3. 超える場合、最も古い非お気に入り録画を削除対象にする。
+4. 削除対象のRecordingMetadataを`status: "deleted"`、`deletionReason: "recording_limit"`、`deletedAt`ありに更新する。
+5. 削除対象に紐づくRecordingChunkを削除する。
+6. PracticeSession、SelfReview、AudioMetrics、ConversationAnalysis、ScenarioEvaluation、FeedbackResultは削除しない。
+
+新しい録画の保存に失敗した場合、既存録画の削除処理は実行しない。
+
+20本すべてがお気に入りの場合、新しい録画の開始前に`RecordingLimitReachedError`を返し、録画開始を止める。
+
+同じ保存要求の再送で複数動画を削除しないよう、保存処理は録画ID単位で冪等に扱う。
+
+### 手動動画削除
+
+ユーザーが動画だけを手動削除した場合、RecordingMetadataを`status: "deleted"`、`deletionReason: "manual"`、`deletedAt`ありに更新し、RecordingChunkを削除する。
+
+PracticeSession、SelfReview、AudioMetrics、ConversationAnalysis、ScenarioEvaluation、FeedbackResultは保持する。
 
 ---

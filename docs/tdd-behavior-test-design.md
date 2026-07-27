@@ -340,25 +340,65 @@ The app stores local practice history and compares a session with the previous m
 - The previous comparison uses the latest session with the same situation, scene, difficulty, and client type.
 - If no previous matching session exists, the page says this is the first attempt for that condition.
 - Deleted videos are shown as deleted while analysis remains accessible.
+- If a recording was auto-deleted because of the 20-recording limit, history says "The recording was automatically deleted because the storage limit was reached."
 - Partial retries are visually distinct from full practice sessions.
 - Deleting a session deletes related chunks, self-review, analysis, and retry links.
+- Manually deleting only a recording deletes the video and chunks but keeps the practice session, self-review, and analysis.
 
 ## 22. Local Storage And Auto Delete
 
 ### Behavior
 
-The app stores recordings, session metadata, self-review, analysis, and history in IndexedDB. Recordings expire after 30 days unless favorited.
+The app stores recordings, session metadata, self-review, analysis, and history in IndexedDB. The personal MVP stores at most 20 completed recordings. Recordings expire after 30 days unless favorited. If a new recording would exceed the 20-recording limit, the app deletes the oldest non-favorite recording only after the new recording is successfully saved. Recovery candidates do not count toward the 20-recording limit.
 
 ### Natural-Language Tests
 
 - Every saved object is linked to a session ID.
 - Recording chunks and analysis can be retrieved by session ID.
+- If 19 completed recordings exist, saving a new recording deletes no existing recording.
+- If 20 completed recordings exist, saving the 21st recording deletes the oldest non-favorite recording.
+- If two candidate recordings have the same creation time, the deletion target is chosen with a stable secondary key such as recording ID.
+- Favorite recordings are excluded from recording-limit deletion candidates.
+- If all 20 completed recordings are favorites, the app blocks starting a new recording and shows a message asking the user to unfavorite or delete a recording.
+- Recovery candidates are not included in the completed recording count.
+- The completed recording count never exceeds 20.
+- Existing recordings are not deleted if the new recording fails to save.
+- Automatic recording-limit deletion removes only recording metadata and recording chunks.
+- Practice sessions, self-review, audio analysis, conversation analysis, scenario evaluation, and feedback remain after recording-limit deletion.
+- Running the same save request twice does not delete multiple old recordings by mistake.
 - Recordings older than 30 days are eligible for deletion.
 - Recordings exactly on the boundary date follow the documented boundary rule.
-- Favorite recordings are not deleted automatically.
+- Favorite recordings are not deleted automatically by retention or recording-limit rules.
 - Running "delete all data" removes sessions, chunks, self-review, analysis, and local settings.
 - Before deletion, the app explains that deleted data cannot be restored.
 - If deletion fails midway, the app remains in a consistent state.
+
+### Unit Test Requirements
+
+- With 19 completed recordings, the deletion candidate selector returns no target.
+- With 20 completed recordings, the deletion candidate selector returns the oldest non-favorite recording.
+- If creation timestamps are equal, the selector uses a stable secondary key such as recording ID.
+- Favorite recordings are excluded from deletion candidates.
+- If all 20 completed recordings are favorites, the selector returns `RecordingLimitReachedError`.
+- Recoverable recordings are excluded from the completed recording count.
+
+### Integration Test Requirements
+
+- After a new recording is saved, only the old video metadata and recording chunks are deleted.
+- Practice session, self-review, and analysis records remain after recording-limit deletion.
+- If the new recording save fails, no deletion transaction is executed.
+- If deletion fails midway, IndexedDB consistency is preserved.
+- Re-sending the same save request performs deletion only once.
+
+### E2E Test Requirements
+
+1. Save 20 recordings.
+2. Confirm the oldest and newest recordings.
+3. Save the 21st recording.
+4. Confirm the oldest non-favorite video is no longer playable.
+5. Confirm analysis for that practice remains visible.
+6. Confirm the new recording appears in history.
+7. Confirm the saved recording count is still 20.
 
 ## 23. Admin Experiment Mode
 
@@ -448,4 +488,3 @@ The core MVP path works from setup to history.
 16. History and previous comparison
 17. Admin experiment mode
 18. E2E path with mocked media and AI services
-

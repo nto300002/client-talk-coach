@@ -179,11 +179,37 @@ If the user selects "let the app choose", the app chooses one focus skill from t
 - Recording format is WebM where supported.
 - Recording data is stored in IndexedDB, split into small chunks.
 - Default retention is 30 days.
-- Favorite recordings are excluded from automatic deletion.
+- The personal MVP stores at most 20 completed recordings on the device.
+- Recovery candidates are managed separately and do not count toward the 20-recording limit.
+- If a new recording would exceed the 20-recording limit, the app deletes the oldest non-favorite recording after the new recording is successfully saved.
+- If saving the new recording fails, existing recordings are not deleted.
+- Auto deletion removes the video metadata and recording chunks, but keeps practice history, self-review, audio analysis, conversation analysis, scenario evaluation, and feedback.
+- History for an auto-deleted recording shows that the recording was removed because of the storage limit.
+- If all 20 recordings are favorites, the app blocks starting a new recording and asks the user to unfavorite or delete a recording.
+- Favorite recordings are excluded from both retention-based auto deletion and recording-limit auto deletion.
+- Manual video deletion removes the video and chunks but keeps the practice history and analysis.
 - The user can play, delete, download, and bulk-delete recordings.
 - Cloud video storage is out of scope for the MVP.
 
 Audio or text required for STT and AI conversation may be sent to external APIs. "Private" means that other users and administrators cannot view the user's recordings, transcripts, self-review, or evaluation results. It does not mean that no data is ever sent to external AI providers.
+
+### Recording Metadata
+
+```typescript
+type RecordingMetadata = {
+  id: string;
+  sessionId: string;
+  createdAt: string;
+  deletedAt: string | null;
+  deletionReason:
+    | "manual"
+    | "retention_expired"
+    | "recording_limit"
+    | null;
+  isFavorite: boolean;
+  status: "recording" | "completed" | "recoverable" | "deleted";
+};
+```
 
 ## 13. AI And API Cost Strategy
 
@@ -323,4 +349,3 @@ The MVP is complete when the following flow works reliably:
 9. Start and save a linked partial retry.
 10. Save history locally and compare with the previous matching session.
 11. Add new scenario definitions without changing common engine code.
-

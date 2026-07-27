@@ -16,4 +16,4 @@ This directory contains the MVP requirements, TDD behavior design, and detailed 
 - [error-and-dependency-design.md](error-and-dependency-design.md): Error taxonomy, retry behavior, data retention on failure, and TDD-friendly dependency injection.
 - [directory-and-abstraction-design.md](directory-and-abstraction-design.md): Recommended directory structure and API abstraction granularity.
 - [implementation-sequences-and-decisions.md](implementation-sequences-and-decisions.md): Main processing sequences and final implementation decisions.
-
+- [pre-implementation-decisions.md](pre-implementation-decisions.md): Additional decisions to fix before MVP implementation starts.
