@@ -6,6 +6,11 @@ This directory contains the MVP requirements, TDD behavior design, and detailed 
 
 - [requirements.md](requirements.md): Personal MVP product requirements.
 - [tdd-behavior-test-design.md](tdd-behavior-test-design.md): Natural-language behavior and TDD test requirements.
+- [issue/README.md](issue/README.md): Implementation issue drafts split by feature, each with TDD, acceptance, and E2E requirements.
+- [screen-transition-diagram.md](screen-transition-diagram.md): Screen transition diagrams.
+- [screen-mockups.md](screen-mockups.md): Text-based screen mockups.
+- [screen-detail-design.md](screen-detail-design.md): Detailed screen-by-screen specifications.
+- [screen-visual-design.md](screen-visual-design.md): Visual design rules, including the light orange theme.
 
 ## Detailed Design
 
