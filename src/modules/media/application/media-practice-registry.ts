@@ -9,11 +9,17 @@ import {
   type BrowserRecording,
   type MediaPreview,
 } from "@/modules/media/infrastructure/browser-media-facade";
+import { analyzePracticeAudio } from "@/modules/audio-analysis/application/analyze-practice-audio";
+import type { AudioFrame } from "@/modules/audio-analysis/domain/audio-analysis";
+import { createBrowserAudioMonitor } from "@/modules/audio-analysis/infrastructure/browser-audio-monitor";
 
 type ActiveMediaPractice = {
   preview: MediaPreview;
   recordingId: string;
   recording: BrowserRecording;
+  audioFrames: AudioFrame[];
+  baselineRms: number;
+  stopAudioMonitor(): void;
 };
 
 const activePractices = new Map<string, ActiveMediaPractice>();
@@ -52,7 +58,24 @@ export async function startMediaPractice(input: {
         }),
     });
 
-    activePractices.set(input.sessionId, { preview: input.preview, recordingId, recording });
+    const audioFrames: AudioFrame[] = [];
+    let stopAudioMonitor: () => void = () => undefined;
+    try {
+      const audioMonitor = createBrowserAudioMonitor().start(input.preview.stream as MediaStream, (frame) => {
+        audioFrames.push(frame);
+      });
+      stopAudioMonitor = audioMonitor.stop;
+    } catch {
+      // Recording continues even when browser-specific local monitoring is unavailable.
+    }
+    activePractices.set(input.sessionId, {
+      preview: input.preview,
+      recordingId,
+      recording,
+      audioFrames,
+      baselineRms: input.preview.microphoneLevel,
+      stopAudioMonitor,
+    });
     void recording.finished.then((result) => {
       if (result.status === "recoverable") {
         return localRepository.markRecordingRecoverable(recordingId);
@@ -84,11 +107,23 @@ export async function finishMediaPractice(sessionId: string): Promise<"completed
 
   const result = await activePractice.recording.stop();
   const localRepository = getRecordingRepository();
+  activePractice.stopAudioMonitor();
   if (result.status === "completed") {
     await localRepository.completeRecording(activePractice.recordingId);
   } else {
     await localRepository.markRecordingRecoverable(activePractice.recordingId);
   }
+  await analyzePracticeAudio(
+    {
+      analysisId: `audio-${sessionId}`,
+      sessionId,
+      baselineRms: activePractice.baselineRms,
+      frames: activePractice.audioFrames,
+      transcript: "",
+      aiSpeechIntervals: [],
+    },
+    localRepository,
+  );
   activePractices.delete(sessionId);
   activePractice.preview.stream.getTracks().forEach((track) => track.stop());
   return result.status;
