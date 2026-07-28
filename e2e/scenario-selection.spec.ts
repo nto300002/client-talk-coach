@@ -54,3 +54,19 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await expect(page).toHaveURL(/\/self-review$/);
   await expect(page.getByRole("heading", { name: "練習後の自己評価" })).toBeVisible();
 });
+
+test("keeps 20 recordings, deletes only the old video, and blocks all-favorite recording starts", async ({ page }) => {
+  await page.goto("/recording-storage-test");
+
+  await page.getByRole("button", { name: "20件の録画を作成" }).click();
+  await expect(page.getByText("保存済み録画: 20 / 20")).toBeVisible();
+
+  await page.getByRole("button", { name: "21本目を保存" }).click();
+  await expect(page.getByText("保存済み録画: 20 / 20")).toBeVisible();
+  await expect(page.getByText("recording-00: 保存上限により自動削除されました")).toBeVisible();
+  await expect(page.getByText("recording-00 の分析結果は保持されています")).toBeVisible();
+
+  await page.getByRole("button", { name: "20件をすべてお気に入りにする" }).click();
+  await page.getByRole("button", { name: "録画を開始する" }).click();
+  await expect(page.getByText("お気に入りを解除または動画を削除してください")).toBeVisible();
+});
