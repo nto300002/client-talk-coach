@@ -211,6 +211,46 @@ main {
   background: #9a3412;
 }
 
+.practice-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.practice-panel h1,
+.practice-panel p {
+  margin: 0;
+}
+
+.practice-status {
+  color: #9a3412;
+  font-weight: 700;
+}
+
+.practice-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.secondary-action,
+.text-action {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #c2410c;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #9a3412;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.text-action {
+  border-color: transparent;
+  background: transparent;
+  color: #7c2d12;
+}
+
 @media (max-width: 640px) {
   .setup-page { padding: 24px 16px; }
   .assessment-grid { grid-template-columns: 1fr; }
