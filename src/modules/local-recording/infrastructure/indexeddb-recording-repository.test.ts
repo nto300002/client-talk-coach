@@ -84,6 +84,31 @@ describe("IndexedDbRecordingRepository", () => {
     expect(await repository.countStoredCompletedRecordings()).toBe(1);
   });
 
+  it("persists recording chunks incrementally and marks interrupted recordings recoverable", async () => {
+    const { database, repository } = createRepository();
+    const metadata = { ...recording("recording-live", "2026-07-01T00:00:00.000Z"), status: "recording" as const };
+
+    await repository.startRecording(metadata);
+    await repository.saveRecordingChunk(chunk(metadata.id));
+    await repository.markRecordingRecoverable(metadata.id);
+
+    expect(await database.recordingChunks.where("recordingId").equals(metadata.id).count()).toBe(1);
+    expect(await database.recordings.get(metadata.id)).toMatchObject({ status: "recoverable" });
+  });
+
+  it("completes an incrementally persisted recording without duplicating its chunks", async () => {
+    const { repository } = createRepository();
+    const metadata = { ...recording("recording-live", "2026-07-01T00:00:00.000Z"), status: "recording" as const };
+
+    await repository.startRecording(metadata);
+    await repository.saveRecordingChunk(chunk(metadata.id));
+    await repository.completeRecording(metadata.id);
+    await repository.completeRecording(metadata.id);
+
+    expect(await repository.findRecording(metadata.id)).toMatchObject({ status: "completed" });
+    expect(await repository.countStoredCompletedRecordings()).toBe(1);
+  });
+
   it("deletes video metadata and chunks manually but preserves session and analysis", async () => {
     const { database, repository } = createRepository();
     const metadata = recording("recording-00", "2026-07-01T00:00:00.000Z");
