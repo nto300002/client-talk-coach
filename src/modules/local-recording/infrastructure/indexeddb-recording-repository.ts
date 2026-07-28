@@ -80,6 +80,65 @@ export class IndexedDbRecordingRepository {
     );
   }
 
+  async startRecording(metadata: RecordingMetadata): Promise<void> {
+    await this.assertCanStartNewRecording();
+    const existing = await this.database.recordings.get(metadata.id);
+    if (existing) {
+      return;
+    }
+
+    await this.database.recordings.add({
+      ...metadata,
+      status: "recording",
+      deletedAt: null,
+      deletionReason: null,
+    });
+  }
+
+  async saveRecordingChunk(chunk: RecordingChunk): Promise<void> {
+    const existing = await this.database.recordingChunks.get(chunk.id);
+    if (!existing) {
+      await this.database.recordingChunks.add(chunk);
+    }
+  }
+
+  async completeRecording(recordingId: string, now = new Date().toISOString()): Promise<void> {
+    const recording = await this.database.recordings.get(recordingId);
+    if (!recording || recording.status === "completed") {
+      return;
+    }
+
+    const activeRecordings = await this.listActiveRecordings();
+    const cleanupCandidate = selectRecordingLimitCleanup(
+      activeRecordings.filter((candidate) => candidate.id !== recordingId),
+    );
+
+    await this.database.transaction("rw", this.database.recordings, this.database.recordingChunks, async () => {
+      await this.database.recordings.update(recordingId, {
+        status: "completed",
+        deletedAt: null,
+        deletionReason: null,
+      });
+
+      if (cleanupCandidate) {
+        await this.database.recordings.update(cleanupCandidate.id, {
+          status: "deleted",
+          deletedAt: now,
+          deletionReason: "recording_limit",
+        });
+        await this.deleteRecordingChunks(cleanupCandidate.id);
+      }
+    });
+  }
+
+  async markRecordingRecoverable(recordingId: string): Promise<void> {
+    const recording = await this.database.recordings.get(recordingId);
+    if (!recording || recording.status === "completed" || recording.status === "deleted") {
+      return;
+    }
+    await this.database.recordings.update(recordingId, { status: "recoverable" });
+  }
+
   async countStoredCompletedRecordings(): Promise<number> {
     return (await this.listActiveRecordings()).filter(isStoredCompletedRecording).length;
   }

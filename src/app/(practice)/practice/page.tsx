@@ -9,6 +9,12 @@ import {
   resumePracticeSession,
 } from "@/modules/practice-session/application/practice-lifecycle";
 import type { PracticeSession } from "@/modules/practice-session/domain/practice-session";
+import {
+  finishMediaPractice,
+  getActiveMediaPractice,
+  pauseMediaPractice,
+  resumeMediaPractice,
+} from "@/modules/media/application/media-practice-registry";
 
 const sessionStorageKey = "client-talk-coach.practice-session";
 
@@ -28,6 +34,7 @@ export default function PracticePage() {
   }
 
   const isPaused = session.status === "paused";
+  const isRecording = getActiveMediaPractice(session.id) !== null;
 
   function saveSession(nextSession: PracticeSession) {
     window.sessionStorage.setItem(sessionStorageKey, JSON.stringify(nextSession));
@@ -40,6 +47,7 @@ export default function PracticePage() {
       return;
     }
 
+    await finishMediaPractice(currentSession.id);
     const endedSession = await endPracticeWithoutMedia(currentSession, reason);
     saveSession(endedSession);
     router.push("/self-review");
@@ -51,16 +59,22 @@ export default function PracticePage() {
         <p className="eyebrow">ClientTalk Coach</p>
         <h1 id="practice-title">AI顧客との練習</h1>
         <p className="practice-status" aria-live="polite">
-          {isPaused ? "一時停止中" : "会話の準備ができています"}
+          {isPaused ? "一時停止中" : isRecording ? "録画中です" : "会話の準備ができています"}
         </p>
         <p>{session.configuration.durationMinutes}分の練習です。詳細な採点は会話中に表示しません。</p>
         <div className="practice-controls">
           {isPaused ? (
-            <button className="primary-action" type="button" onClick={() => saveSession(resumePracticeSession(session))}>
+            <button className="primary-action" type="button" onClick={() => {
+              void resumeMediaPractice(session.id);
+              saveSession(resumePracticeSession(session));
+            }}>
               再開する
             </button>
           ) : (
-            <button className="secondary-action" type="button" onClick={() => saveSession(pausePracticeSession(session))}>
+            <button className="secondary-action" type="button" onClick={() => {
+              void pauseMediaPractice(session.id);
+              saveSession(pausePracticeSession(session));
+            }}>
               一時停止する
             </button>
           )}

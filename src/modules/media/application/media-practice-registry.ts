@@ -1,0 +1,104 @@
+"use client";
+
+import {
+  IndexedDbRecordingRepository,
+  LocalPracticeDatabase,
+} from "@/modules/local-recording/infrastructure/indexeddb-recording-repository";
+import {
+  BrowserMediaFacade,
+  type BrowserRecording,
+  type MediaPreview,
+} from "@/modules/media/infrastructure/browser-media-facade";
+
+type ActiveMediaPractice = {
+  preview: MediaPreview;
+  recordingId: string;
+  recording: BrowserRecording;
+};
+
+const activePractices = new Map<string, ActiveMediaPractice>();
+let repository: IndexedDbRecordingRepository | null = null;
+
+export async function startMediaPractice(input: {
+  sessionId: string;
+  preview: MediaPreview;
+  media: BrowserMediaFacade;
+}): Promise<void> {
+  const recordingId = `recording-${crypto.randomUUID()}`;
+  const localRepository = getRecordingRepository();
+  const createdAt = new Date().toISOString();
+
+  await localRepository.startRecording({
+    id: recordingId,
+    sessionId: input.sessionId,
+    createdAt,
+    deletedAt: null,
+    deletionReason: null,
+    isFavorite: false,
+    status: "recording",
+  });
+
+  try {
+    const recording = input.media.startRecording({
+      recordingId,
+      stream: input.preview.stream,
+      onChunk: (chunk) =>
+        localRepository.saveRecordingChunk({
+          id: `${recordingId}-${chunk.sequence}`,
+          recordingId,
+          sequence: chunk.sequence,
+          createdAt: chunk.createdAt,
+          blob: chunk.blob,
+        }),
+    });
+
+    activePractices.set(input.sessionId, { preview: input.preview, recordingId, recording });
+    void recording.finished.then((result) => {
+      if (result.status === "recoverable") {
+        return localRepository.markRecordingRecoverable(recordingId);
+      }
+    });
+  } catch (error) {
+    await localRepository.markRecordingRecoverable(recordingId);
+    throw error;
+  }
+}
+
+export function getActiveMediaPractice(sessionId: string): ActiveMediaPractice | null {
+  return activePractices.get(sessionId) ?? null;
+}
+
+export async function pauseMediaPractice(sessionId: string): Promise<void> {
+  activePractices.get(sessionId)?.recording.pause();
+}
+
+export async function resumeMediaPractice(sessionId: string): Promise<void> {
+  activePractices.get(sessionId)?.recording.resume();
+}
+
+export async function finishMediaPractice(sessionId: string): Promise<"completed" | "recoverable" | "missing"> {
+  const activePractice = activePractices.get(sessionId);
+  if (!activePractice) {
+    return "missing";
+  }
+
+  const result = await activePractice.recording.stop();
+  const localRepository = getRecordingRepository();
+  if (result.status === "completed") {
+    await localRepository.completeRecording(activePractice.recordingId);
+  } else {
+    await localRepository.markRecordingRecoverable(activePractice.recordingId);
+  }
+  activePractices.delete(sessionId);
+  activePractice.preview.stream.getTracks().forEach((track) => track.stop());
+  return result.status;
+}
+
+export function abandonMediaPreview(preview: MediaPreview, media: BrowserMediaFacade): void {
+  media.stopPreview(preview);
+}
+
+function getRecordingRepository(): IndexedDbRecordingRepository {
+  repository ??= new IndexedDbRecordingRepository(new LocalPracticeDatabase());
+  return repository;
+}

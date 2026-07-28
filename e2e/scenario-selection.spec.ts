@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 test("shows enabled technical MVP scenarios and hides disabled fixtures", async ({ page }) => {
   await page.goto("/setup");
@@ -31,6 +31,7 @@ test("completes practice setup and reaches device check", async ({ page }) => {
 });
 
 test("runs the practice lifecycle through pause, resume, and post-practice self review", async ({ page }) => {
+  await installBrowserMediaMocks(page);
   await page.goto("/setup");
 
   await page.getByRole("radio", { name: /初回要件ヒアリング/ }).check();
@@ -42,18 +43,64 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await page.getByLabel("練習前の自信度").fill("6");
   await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
 
-  await page.getByRole("button", { name: "練習を開始する" }).click();
+  await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
+  await expect(page.getByText("カメラ: 準備完了")).toBeVisible();
+  await expect(page.getByLabel("カメラプレビュー")).toBeVisible();
+  await page.getByRole("button", { name: "録画して練習を開始する" }).click();
   await expect(page.getByRole("heading", { name: "AI顧客との練習" })).toBeVisible();
+  await expect(page.getByText("録画中です")).toBeVisible();
 
   await page.getByRole("button", { name: "一時停止する" }).click();
   await expect(page.getByText("一時停止中")).toBeVisible();
   await page.getByRole("button", { name: "再開する" }).click();
-  await expect(page.getByText("会話の準備ができています")).toBeVisible();
+  await expect(page.getByText("録画中です")).toBeVisible();
 
   await page.getByRole("button", { name: "会話を終了する" }).click();
   await expect(page).toHaveURL(/\/self-review$/);
   await expect(page.getByRole("heading", { name: "練習後の自己評価" })).toBeVisible();
 });
+
+async function installBrowserMediaMocks(page: Page) {
+  await page.addInitScript(() => {
+    const stream = new MediaStream();
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: async () => stream },
+    });
+
+    class FakeMediaRecorder {
+      static isTypeSupported() {
+        return true;
+      }
+
+      state: "inactive" | "recording" | "paused" = "inactive";
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      onerror: ((event: { error: Error }) => void) | null = null;
+
+      start() {
+        this.state = "recording";
+        this.ondataavailable?.({ data: new Blob(["recording"], { type: "video/webm" }) });
+      }
+
+      pause() {
+        this.state = "paused";
+      }
+
+      resume() {
+        this.state = "recording";
+      }
+
+      stop() {
+        this.state = "inactive";
+        this.onstop?.();
+      }
+    }
+
+    Object.defineProperty(window, "MediaRecorder", { configurable: true, value: FakeMediaRecorder });
+    HTMLMediaElement.prototype.play = () => Promise.resolve();
+  });
+}
 
 test("keeps 20 recordings, deletes only the old video, and blocks all-favorite recording starts", async ({ page }) => {
   await page.goto("/recording-storage-test");
