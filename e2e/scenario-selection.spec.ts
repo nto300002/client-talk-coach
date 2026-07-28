@@ -117,3 +117,14 @@ test("keeps 20 recordings, deletes only the old video, and blocks all-favorite r
   await page.getByRole("button", { name: "録画を開始する" }).click();
   await expect(page.getByText("お気に入りを解除または動画を削除してください")).toBeVisible();
 });
+
+test("shows timestamped audio markers from a mocked fixture analysis", async ({ page }) => {
+  await page.goto("/audio-analysis-test");
+
+  await page.getByRole("button", { name: "フィクスチャ音声を分析する" }).click();
+
+  await expect(page.getByRole("heading", { name: "音声分析マーカー" })).toBeVisible();
+  await expect(page.getByText(/low_volume: 0ms/)).toBeVisible();
+  await expect(page.getByText(/long_silence: 500ms/)).toBeVisible();
+  await expect(page.getByText(/filler: 0ms/)).toBeVisible();
+});

@@ -7,6 +7,7 @@ import {
   LocalPracticeDatabase,
 } from "@/modules/local-recording/infrastructure/indexeddb-recording-repository";
 import type { RecordingMetadata } from "@/modules/local-recording/domain/recording-limit";
+import type { AudioAnalysisResult } from "@/modules/audio-analysis/domain/audio-analysis";
 
 const databases: LocalPracticeDatabase[] = [];
 
@@ -155,12 +156,36 @@ describe("IndexedDbRecordingRepository", () => {
     expect(await database.recordingChunks.count()).toBe(0);
     expect(await database.practiceSessions.count()).toBe(0);
   });
+
+  it("saves and loads audio analysis independently from recording video data", async () => {
+    const { repository } = createRepository();
+    const analysis = audioAnalysis("session-audio");
+
+    await repository.saveAudioAnalysis(analysis);
+
+    await expect(repository.findAudioAnalysis("session-audio")).resolves.toEqual(analysis);
+  });
 });
 
 function createRepository() {
   const database = new LocalPracticeDatabase(`client-talk-coach-test-${crypto.randomUUID()}`);
   databases.push(database);
   return { database, repository: new IndexedDbRecordingRepository(database) };
+}
+
+function audioAnalysis(sessionId: string): { id: string; sessionId: string; result: AudioAnalysisResult } {
+  return {
+    id: `audio-${sessionId}`,
+    sessionId,
+    result: {
+      averageRms: 0.07,
+      speechIntervals: [{ startMs: 0, endMs: 500 }],
+      firstResponseDelayMs: 0,
+      speakingSpeedCharactersPerMinute: 240,
+      fillerCount: 0,
+      markers: [{ category: "low_volume", timestampMs: 0, detail: "個人基準より小さい音量です。" }],
+    },
+  };
 }
 
 function recording(id: string, createdAt: string): RecordingMetadata {

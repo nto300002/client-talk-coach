@@ -1,5 +1,7 @@
 import Dexie, { type Table } from "dexie";
 
+import type { AudioAnalysisResult } from "@/modules/audio-analysis/domain/audio-analysis";
+
 import {
   isStoredCompletedRecording,
   selectRecordingLimitCleanup,
@@ -16,6 +18,12 @@ export type StoredPracticeSession = {
 export type StoredAnalysis = {
   id: string;
   sessionId: string;
+};
+
+export type StoredAudioAnalysis = {
+  id: string;
+  sessionId: string;
+  result: AudioAnalysisResult;
 };
 
 export class LocalPracticeDatabase extends Dexie {
@@ -157,6 +165,15 @@ export class IndexedDbRecordingRepository {
 
   async findAnalysis(analysisId: string): Promise<StoredAnalysis | undefined> {
     return this.database.analyses.get(analysisId);
+  }
+
+  async saveAudioAnalysis(analysis: StoredAudioAnalysis): Promise<void> {
+    await this.database.analyses.put(analysis);
+  }
+
+  async findAudioAnalysis(sessionId: string): Promise<StoredAudioAnalysis | undefined> {
+    const analyses = await this.database.analyses.where("sessionId").equals(sessionId).toArray();
+    return analyses.find((analysis): analysis is StoredAudioAnalysis => "result" in analysis);
   }
 
   async removeExpiredRecordings(now: Date): Promise<number> {
