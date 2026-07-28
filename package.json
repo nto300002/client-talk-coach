@@ -1,0 +1,34 @@
+{
+  "name": "client-talk-coach",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "smoke:providers": "node --env-file-if-exists=.env.local --import tsx scripts/smoke-providers.ts",
+    "smoke:providers:production": "node --env-file-if-exists=.env.local --import tsx scripts/smoke-providers.ts --production"
+  },
+  "dependencies": {
+    "@google/genai": "^1.32.0",
+    "next": "16.2.12",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "16.2.12",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,0 +1,31 @@
+:root {
+  color: #1f2937;
+  background: #fff7ed;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; }
+
+main {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.panel {
+  width: min(100%, 640px);
+  padding: 32px;
+  border: 1px solid #fdba74;
+  border-radius: 8px;
+  background: #fffbf5;
+}
+
+.status {
+  margin-top: 20px;
+  padding: 16px;
+  border-left: 4px solid #ea7a1a;
+  background: #fff7ed;
+}
