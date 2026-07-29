@@ -318,6 +318,19 @@ main {
   background: #f0fdf4;
 }
 
+.evaluation-summary {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #fed7aa;
+}
+
+.evaluation-summary h2,
+.evaluation-summary p,
+.evaluation-summary ul { margin: 0; }
+
+.evaluation-summary h2 { font-size: 1rem; }
+
 .secondary-action,
 .text-action {
   min-height: 44px;
