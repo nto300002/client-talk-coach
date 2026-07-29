@@ -232,6 +232,55 @@ main {
   flex-wrap: wrap;
 }
 
+.conversation-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.conversation-panel h2,
+.conversation-panel p { margin: 0; }
+
+.conversation-turns {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.conversation-turns p {
+  padding: 10px 12px;
+  border-radius: 6px;
+  line-height: 1.55;
+}
+
+.client-turn { background: #fff7ed; }
+.user-turn { background: #f3f4f6; }
+
+.conversation-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.conversation-entry input {
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #fdba74;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.conversation-state {
+  color: #57534e;
+  font-size: 0.9rem;
+}
+
 .secondary-action,
 .text-action {
   min-height: 44px;
@@ -286,4 +335,5 @@ main {
 @media (max-width: 640px) {
   .setup-page { padding: 24px 16px; }
   .assessment-grid { grid-template-columns: 1fr; }
+  .conversation-entry { grid-template-columns: 1fr; }
 }

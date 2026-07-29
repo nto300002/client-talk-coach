@@ -60,6 +60,27 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await expect(page.getByRole("heading", { name: "練習後の自己評価" })).toBeVisible();
 });
 
+test("discloses an eligible client fact only after the matching question", async ({ page }) => {
+  await installBrowserMediaMocks(page);
+  await page.goto("/setup");
+  await page.getByRole("radio", { name: /初回要件ヒアリング/ }).check();
+  await page.getByRole("radio", { name: /福祉事業所の初回相談/ }).check();
+  await page.getByRole("radio", { name: /初級/ }).check();
+  await page.getByRole("radio", { name: /IT知識が少ない顧客/ }).check();
+  await page.getByRole("radio", { name: "質問を行う" }).check();
+  await page.getByLabel("練習前の緊張度").fill("4");
+  await page.getByLabel("練習前の自信度").fill("6");
+  await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
+  await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
+  await page.getByRole("button", { name: "録画して練習を開始する" }).click();
+
+  await expect(page.getByText("氏名、住所、支援記録などの個人情報を扱う。", { exact: false })).toHaveCount(0);
+  await page.getByLabel("顧客への発話（テスト入力）").fill("個人情報を扱いますか？");
+  await page.getByRole("button", { name: "発話を送る" }).click();
+  await expect(page.getByText("氏名、住所、支援記録などの個人情報を扱う。", { exact: false })).toBeVisible();
+  await expect(page.getByText("開示済み要件: 現行Excel管理、個人情報")).toBeVisible();
+});
+
 async function installBrowserMediaMocks(page: Page) {
   await page.addInitScript(() => {
     const stream = new MediaStream();
