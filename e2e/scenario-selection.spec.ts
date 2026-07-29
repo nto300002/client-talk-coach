@@ -10,6 +10,14 @@ test("shows enabled technical MVP scenarios and hides disabled fixtures", async 
   await expect(page.getByText("Disabled Fixture Scenario")).toHaveCount(0);
 });
 
+test("does not show errors for untouched dependent setup fields", async ({ page }) => {
+  await page.goto("/setup");
+  await page.getByRole("radio", { name: /初回要件ヒアリング/ }).check();
+
+  await expect(page.locator(".field-error")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "デバイス確認へ進む" })).toBeDisabled();
+});
+
 test("completes practice setup and reaches device check", async ({ page }) => {
   await page.goto("/setup");
 
