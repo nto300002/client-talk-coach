@@ -128,3 +128,10 @@ test("shows timestamped audio markers from a mocked fixture analysis", async ({ 
   await expect(page.getByText(/long_silence: 500ms/)).toBeVisible();
   await expect(page.getByText(/filler: 0ms/)).toBeVisible();
 });
+
+test("shows a mock STT transcript for a fixture utterance", async ({ page }) => {
+  await page.goto("/transcription-test");
+
+  await page.getByRole("button", { name: "フィクスチャ発話を文字起こしする" }).click();
+  await expect(page.getByText("文字起こし: テスト発話を受け取りました")).toBeVisible();
+});
