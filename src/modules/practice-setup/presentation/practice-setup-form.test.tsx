@@ -16,6 +16,18 @@ import { technicalMvpScenarioFixtures } from "@/scenarios/technical-mvp";
 afterEach(() => cleanup());
 
 describe("PracticeSetupForm", () => {
+  it("keeps untouched dependent fields free of validation messages", async () => {
+    const user = userEvent.setup();
+    render(
+      <PracticeSetupForm scenarios={technicalMvpScenarioFixtures.filter((scenario) => scenario.status === "enabled")} />,
+    );
+
+    await user.click(screen.getByRole("radio", { name: /初回要件ヒアリング/ }));
+
+    expect(document.querySelectorAll(".field-error")).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "デバイス確認へ進む" })).toBeDisabled();
+  });
+
   it("updates the selected visual state and clears a dependent scene when the situation changes", async () => {
     const user = userEvent.setup();
     render(<PracticeSetupForm scenarios={technicalMvpScenarioFixtures.filter((scenario) => scenario.status === "enabled")} />);

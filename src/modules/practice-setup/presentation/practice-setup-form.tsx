@@ -24,6 +24,7 @@ const durationOptions = [5, 7, 10] as const;
 export function PracticeSetupForm({ scenarios, onStart }: PracticeSetupFormProps) {
   const router = useRouter();
   const [draft, setDraft] = useState<PracticeSetupInput>({ durationMinutes: 7 });
+  const [touchedFields, setTouchedFields] = useState<Set<string>>(() => new Set());
 
   const scenario = scenarios.find((candidate) => candidate.id === draft.scenarioId);
   const sceneOptions = scenario?.scenes ?? [];
@@ -31,7 +32,10 @@ export function PracticeSetupForm({ scenarios, onStart }: PracticeSetupFormProps
     ? getSceneCompatibleOptions(scenario, draft.sceneId)
     : { difficultyProfiles: [], clientTypes: [] };
   const validation = scenario ? validatePracticeSetup(draft, scenario) : null;
-  const errors = validation && !validation.success ? validation.errors : {};
+  const validationErrors = validation && !validation.success ? validation.errors : {};
+  const errors = Object.fromEntries(
+    Object.entries(validationErrors).filter(([field]) => touchedFields.has(field)),
+  );
   const isComplete = validation?.success === true;
 
   const focusSkills = scenario
@@ -42,6 +46,7 @@ export function PracticeSetupForm({ scenarios, onStart }: PracticeSetupFormProps
     : [];
 
   function selectScenario(scenarioId: string) {
+    setTouchedFields(new Set(["scenarioId"]));
     setDraft((current) => ({
       scenarioId,
       sceneId: undefined,
@@ -55,6 +60,7 @@ export function PracticeSetupForm({ scenarios, onStart }: PracticeSetupFormProps
   }
 
   function selectScene(sceneId: string) {
+    setTouchedFields((current) => new Set([...current, "sceneId"]));
     setDraft((current) => ({
       ...current,
       sceneId,
@@ -64,6 +70,7 @@ export function PracticeSetupForm({ scenarios, onStart }: PracticeSetupFormProps
   }
 
   function updateAssessment(field: "tensionBefore" | "confidenceBefore", rawValue: string) {
+    setTouchedFields((current) => new Set([...current, field]));
     setDraft((current) => ({
       ...current,
       [field]: rawValue === "" ? undefined : Number(rawValue),
@@ -133,7 +140,10 @@ export function PracticeSetupForm({ scenarios, onStart }: PracticeSetupFormProps
                 checked={draft.difficultyLevel === item.level}
                 label={`${item.displayName}（レベル${item.level}）`}
                 description={`曖昧さ ${item.ambiguityLevel}/5、想定外の質問 ${item.unexpectedQuestionCount}件`}
-                onChange={() => setDraft((current) => ({ ...current, difficultyLevel: item.level }))}
+                onChange={() => {
+                  setTouchedFields((current) => new Set([...current, "difficultyLevel"]));
+                  setDraft((current) => ({ ...current, difficultyLevel: item.level }));
+                }}
               />
             ))}
           </SelectionGroup>
@@ -147,7 +157,10 @@ export function PracticeSetupForm({ scenarios, onStart }: PracticeSetupFormProps
                 checked={draft.clientTypeId === item.id}
                 label={item.displayName}
                 description={item.description}
-                onChange={() => setDraft((current) => ({ ...current, clientTypeId: item.id }))}
+                onChange={() => {
+                  setTouchedFields((current) => new Set([...current, "clientTypeId"]));
+                  setDraft((current) => ({ ...current, clientTypeId: item.id }));
+                }}
               />
             ))}
           </SelectionGroup>
@@ -159,7 +172,10 @@ export function PracticeSetupForm({ scenarios, onStart }: PracticeSetupFormProps
               checked={draft.focusSkillId === "auto"}
               label="アプリに任せる"
               description="このシチュエーションに合う項目を選びます。"
-              onChange={() => setDraft((current) => ({ ...current, focusSkillId: "auto" }))}
+              onChange={() => {
+                setTouchedFields((current) => new Set([...current, "focusSkillId"]));
+                setDraft((current) => ({ ...current, focusSkillId: "auto" }));
+              }}
             />
             {focusSkills.map((item) => (
               <RadioOption
@@ -168,9 +184,10 @@ export function PracticeSetupForm({ scenarios, onStart }: PracticeSetupFormProps
                 value={item.id}
                 checked={draft.focusSkillId === item.id}
                 label={item.label}
-                onChange={() =>
-                  setDraft((current) => ({ ...current, focusSkillId: item.id as FocusSkillSelection }))
-                }
+                onChange={() => {
+                  setTouchedFields((current) => new Set([...current, "focusSkillId"]));
+                  setDraft((current) => ({ ...current, focusSkillId: item.id as FocusSkillSelection }));
+                }}
               />
             ))}
           </SelectionGroup>
@@ -186,7 +203,10 @@ export function PracticeSetupForm({ scenarios, onStart }: PracticeSetupFormProps
             checked={draft.durationMinutes === duration}
             label={`${duration}分`}
             description={duration === 7 ? "標準の練習時間です。" : undefined}
-            onChange={() => setDraft((current) => ({ ...current, durationMinutes: duration }))}
+            onChange={() => {
+              setTouchedFields((current) => new Set([...current, "durationMinutes"]));
+              setDraft((current) => ({ ...current, durationMinutes: duration }));
+            }}
           />
         ))}
       </SelectionGroup>
