@@ -281,6 +281,43 @@ main {
   font-size: 0.9rem;
 }
 
+.self-review-form {
+  display: grid;
+  gap: 16px;
+}
+
+.self-review-form .setup-section {
+  display: grid;
+  gap: 10px;
+}
+
+.self-review-form label:not(.reflection-field) {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.reflection-field { font-weight: 700; }
+
+.self-review-form textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 10px 12px;
+  border: 1px solid #fdba74;
+  border-radius: 6px;
+  font: inherit;
+  resize: vertical;
+}
+
+.self-review-saved {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  background: #f0fdf4;
+}
+
 .secondary-action,
 .text-action {
   min-height: 44px;

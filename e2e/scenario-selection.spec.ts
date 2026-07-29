@@ -66,6 +66,14 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await page.getByRole("button", { name: "会話を終了する" }).click();
   await expect(page).toHaveURL(/\/self-review$/);
   await expect(page.getByRole("heading", { name: "練習後の自己評価" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "結果を見る" })).toHaveCount(0);
+  await page.getByLabel("練習後の緊張度").fill("3");
+  await page.getByLabel("練習後の自信度").fill("7");
+  await page.getByRole("checkbox", { name: "最後まで話せた" }).check();
+  await page.getByRole("button", { name: "自己評価を保存する" }).click();
+  await expect(page.getByText("自己評価を保存しました。")).toBeVisible();
+  await page.getByRole("link", { name: "結果を見る" }).click();
+  await expect(page.getByRole("heading", { name: "練習結果" })).toBeVisible();
 });
 
 test("discloses an eligible client fact only after the matching question", async ({ page }) => {
