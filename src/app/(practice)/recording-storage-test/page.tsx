@@ -62,6 +62,7 @@ export default function RecordingStorageTestPage() {
     for (let index = 1; index <= 20; index += 1) {
       await currentRepository.setFavorite(`recording-${String(index).padStart(2, "0")}`, true);
     }
+    setMessage("20件をすべてお気に入りにしました");
     await refresh();
   }
 

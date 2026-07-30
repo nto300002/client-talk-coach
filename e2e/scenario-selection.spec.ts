@@ -74,10 +74,15 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await expect(page.getByText("自己評価を保存しました。")).toBeVisible();
   await page.getByRole("link", { name: "結果を見る" }).click();
   await expect(page.getByRole("heading", { name: "練習結果" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "今回できたこと" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "次に練習すること" })).toBeVisible();
+  await expect(page.getByTestId("primary-feedback")).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "今回できたこと" })).toHaveJSProperty("tagName", "H2");
+  await expect(page.getByRole("heading", { name: "再練習" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "取得できた事項" })).toBeVisible();
-  await expect(page.getByText("現行Excel管理")).toBeVisible();
+  await expect(page.getByText("現行Excel管理", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "未確認の重要事項" })).toBeVisible();
-  await expect(page.getByText("個人情報")).toBeVisible();
+  await expect(page.getByText("個人情報", { exact: true })).toBeVisible();
 });
 
 test("discloses an eligible client fact only after the matching question", async ({ page }) => {
@@ -155,6 +160,7 @@ test("keeps 20 recordings, deletes only the old video, and blocks all-favorite r
   await expect(page.getByText("recording-00 の分析結果は保持されています")).toBeVisible();
 
   await page.getByRole("button", { name: "20件をすべてお気に入りにする" }).click();
+  await expect(page.getByRole("status")).toHaveText("20件をすべてお気に入りにしました");
   await page.getByRole("button", { name: "録画を開始する" }).click();
   await expect(page.getByText("お気に入りを解除または動画を削除してください")).toBeVisible();
 });

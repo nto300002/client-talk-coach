@@ -22,6 +22,7 @@ import type { AiClientTurn } from "@/modules/ai-client/domain/ai-client-contract
 import { createScenarioState, type ScenarioState } from "@/modules/scenario/domain/scenario-state";
 import { technicalMvpScenarioFixtures } from "@/scenarios/technical-mvp";
 import { saveScenarioState } from "@/modules/scenario-evaluation/infrastructure/session-storage-scenario-state";
+import { saveConversationTurns } from "@/modules/conversation-analysis/infrastructure/session-storage-conversation-turns";
 
 const sessionStorageKey = "client-talk-coach.practice-session";
 
@@ -64,7 +65,10 @@ export default function PracticePage() {
     }
 
     await finishMediaPractice(currentSession.id);
-    if (conversation) saveScenarioState(currentSession.id, conversation.state);
+    if (conversation) {
+      saveScenarioState(currentSession.id, conversation.state);
+      saveConversationTurns(currentSession.id, conversation.turns);
+    }
     const endedSession = await endPracticeWithoutMedia(currentSession, reason);
     saveSession(endedSession);
     router.push("/self-review");
@@ -88,6 +92,7 @@ export default function PracticePage() {
       });
       const nextConversation = toRuntime(conversation, userTurn, result);
       saveScenarioState(currentSession.id, nextConversation.state);
+      saveConversationTurns(currentSession.id, nextConversation.turns);
       setConversation(nextConversation);
     } catch {
       setConversationError("AI顧客の応答を取得できませんでした。もう一度お試しください。");
