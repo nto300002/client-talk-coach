@@ -163,6 +163,20 @@ export class IndexedDbRecordingRepository {
     return this.database.recordings.get(recordingId);
   }
 
+  async findLatestRecordingForSession(sessionId: string): Promise<RecordingMetadata | undefined> {
+    const recordings = await this.database.recordings.where("sessionId").equals(sessionId).toArray();
+    return recordings
+      .filter((recording) => recording.status === "completed" && recording.deletedAt === null)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  }
+
+  async loadRecordingBlob(recordingId: string): Promise<Blob | null> {
+    const recording = await this.database.recordings.get(recordingId);
+    if (!recording || recording.status !== "completed" || recording.deletedAt !== null) return null;
+    const chunks = await this.database.recordingChunks.where("recordingId").equals(recordingId).sortBy("sequence");
+    return chunks.length ? new Blob(chunks.map((chunk) => chunk.blob), { type: "video/webm" }) : null;
+  }
+
   async findAnalysis(analysisId: string): Promise<StoredAnalysis | undefined> {
     return this.database.analyses.get(analysisId);
   }
