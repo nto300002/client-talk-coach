@@ -83,6 +83,11 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await expect(page.getByText("現行Excel管理", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "未確認の重要事項" })).toBeVisible();
   await expect(page.getByText("個人情報", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "録画を振り返る" }).click();
+  await expect(page.getByRole("heading", { name: "録画を振り返る" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "60秒の再練習を完了する" })).toBeVisible();
+  await page.getByRole("button", { name: "60秒の再練習を完了する" }).click();
+  await expect(page.getByRole("status")).toContainText("元の練習に紐付けて保存しました");
 });
 
 test("discloses an eligible client fact only after the matching question", async ({ page }) => {
