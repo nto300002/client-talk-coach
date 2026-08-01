@@ -10,6 +10,7 @@ import { loadScenarioState } from "@/modules/scenario-evaluation/infrastructure/
 import { analyzeConversation } from "@/modules/conversation-analysis/domain/conversation-analysis";
 import { generateConversationFeedback, type ConversationFeedback } from "@/modules/conversation-analysis/domain/conversation-feedback";
 import { loadConversationTurns } from "@/modules/conversation-analysis/infrastructure/session-storage-conversation-turns";
+import { saveConversationFeedback } from "@/modules/conversation-analysis/infrastructure/session-storage-feedback";
 import type { SelfReview } from "@/modules/self-review/domain/self-review";
 import { SessionStorageSelfReviewRepository } from "@/modules/self-review/infrastructure/session-storage-self-review-repository";
 import { technicalMvpScenarioFixtures } from "@/scenarios/technical-mvp";
@@ -28,7 +29,9 @@ export default function ResultsPage() {
       const state = loadScenarioState(session.id) ?? createScenarioState(definition);
       const evaluation = evaluateScenario(definition, state);
       const analysis = analyzeConversation(loadConversationTurns(session.id));
-      setResult({ review, evaluation, feedback: generateConversationFeedback(evaluation, analysis, session.configuration.focusSkillId) });
+      const feedback = generateConversationFeedback(evaluation, analysis, session.configuration.focusSkillId);
+      saveConversationFeedback(session.id, feedback);
+      setResult({ review, evaluation, feedback });
     });
   }, []);
 
