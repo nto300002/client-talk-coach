@@ -30,6 +30,31 @@ main {
   background: #fff7ed;
 }
 
+.history-list {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-entry {
+  padding: 16px;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.history-entry h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.history-entry p {
+  margin: 6px 0;
+  line-height: 1.5;
+}
+
 .setup-page {
   display: block;
   padding: 32px 24px;

@@ -14,6 +14,16 @@ export class SessionStorageSelfReviewRepository implements SelfReviewRepository 
     return this.read()[sessionId] ?? null;
   }
 
+  async deleteBySessionId(sessionId: string): Promise<void> {
+    const all = this.read();
+    delete all[sessionId];
+    window.sessionStorage.setItem(storageKey, JSON.stringify(all));
+  }
+
+  async clear(): Promise<void> {
+    window.sessionStorage.removeItem(storageKey);
+  }
+
   private read(): Record<string, SelfReview> {
     const stored = window.sessionStorage.getItem(storageKey);
     return stored ? (JSON.parse(stored) as Record<string, SelfReview>) : {};
