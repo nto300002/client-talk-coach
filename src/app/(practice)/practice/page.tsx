@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -12,17 +12,20 @@ import type { PracticeSession } from "@/modules/practice-session/domain/practice
 import {
   finishMediaPractice,
   getActiveMediaPractice,
+  getActiveMediaStream,
   pauseMediaPractice,
   resumeMediaPractice,
 } from "@/modules/media/application/media-practice-registry";
 import { GenerateClientResponse, type GenerateClientResponseOutput } from "@/modules/ai-client/application/generate-client-response";
-import { MockAiClientAdapter } from "@/modules/ai-client/infrastructure/mock-ai-client-adapter";
+import { HttpAiClientAdapter } from "@/modules/ai-client/infrastructure/http-ai-client-adapter";
 import { BrowserSpeechSynthesisAdapter } from "@/modules/ai-client/infrastructure/browser-speech-synthesis-adapter";
 import type { AiClientTurn } from "@/modules/ai-client/domain/ai-client-contract";
 import { createScenarioState, type ScenarioState } from "@/modules/scenario/domain/scenario-state";
 import { technicalMvpScenarioFixtures } from "@/scenarios/technical-mvp";
 import { saveScenarioState } from "@/modules/scenario-evaluation/infrastructure/session-storage-scenario-state";
 import { saveConversationTurns } from "@/modules/conversation-analysis/infrastructure/session-storage-conversation-turns";
+import { HttpTranscriptionAdapter } from "@/modules/transcription/infrastructure/http-transcription-adapter";
+import { ProcessUserUtterance } from "@/modules/transcription/application/process-user-utterance";
 
 const sessionStorageKey = "client-talk-coach.practice-session";
 
@@ -35,8 +38,12 @@ export default function PracticePage() {
   );
   const [conversationError, setConversationError] = useState<string | null>(null);
   const [isResponding, setIsResponding] = useState(false);
+  const [utteranceRecorder, setUtteranceRecorder] = useState<MediaRecorder | null>(null);
+  const utteranceStartedAt = useRef<number | null>(null);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const inputLock = useRef(false);
   const [responseGenerator] = useState(
-    () => new GenerateClientResponse(new MockAiClientAdapter(), new BrowserSpeechSynthesisAdapter()),
+    () => new GenerateClientResponse(new HttpAiClientAdapter(), new BrowserSpeechSynthesisAdapter()),
   );
 
   if (!session) {
@@ -74,10 +81,12 @@ export default function PracticePage() {
     router.push("/self-review");
   }
 
-  async function sendUserTurn() {
+  async function sendUserTurn(transcribedText?: string) {
     const currentSession = session;
-    if (!currentSession || !conversation || !draft.trim() || isPaused || isResponding) return;
-    const userTurn: AiClientTurn = { id: `turn-${crypto.randomUUID()}`, speaker: "user", text: draft.trim() };
+    const text = transcribedText ?? draft.trim();
+    if (!currentSession || !conversation || !text || isPaused || isResponding || isTranscribing || inputLock.current) return;
+    inputLock.current = true;
+    const userTurn: AiClientTurn = { id: `turn-${crypto.randomUUID()}`, speaker: "user", text };
     setDraft("");
     setIsResponding(true);
     setConversationError(null);
@@ -97,8 +106,36 @@ export default function PracticePage() {
     } catch {
       setConversationError("AI顧客の応答を取得できませんでした。もう一度お試しください。");
     } finally {
-      setIsResponding(false);
+      setIsResponding(false); inputLock.current = false;
     }
+  }
+
+  function toggleVoiceUtterance() {
+    if (utteranceRecorder) { utteranceRecorder.stop(); setUtteranceRecorder(null); return; }
+    const currentSession = session;
+    if (!currentSession) return;
+    const stream = getActiveMediaStream(currentSession.id);
+    if (!stream) { setConversationError("マイク入力を開始できませんでした。"); return; }
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+    if (!mimeType) { setConversationError("このブラウザでは音声文字起こし用の録音形式に対応していません。"); return; }
+    const chunks: Blob[] = [];
+    const recorder = new MediaRecorder(stream, { mimeType });
+    recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+    recorder.onstop = () => { void transcribeAndSend(new Blob(chunks, { type: mimeType }), utteranceStartedAt.current ?? 0, Math.floor(performance.now())); };
+    // eslint-disable-next-line react-hooks/purity -- this runs only from the user's click handler.
+    utteranceStartedAt.current = Math.floor(performance.now());
+    recorder.start(); setUtteranceRecorder(recorder);
+  }
+
+  async function transcribeAndSend(audio: Blob, startedAtMs: number, endedAtMs: number) {
+    const currentSession = session;
+    if (!currentSession) return;
+    try {
+      inputLock.current = true; setIsTranscribing(true); setConversationError(null);
+      const result = await new ProcessUserUtterance(new HttpTranscriptionAdapter()).execute({ audio, isSpeech: true, metadata: { sessionId: currentSession.id, utteranceId: crypto.randomUUID(), startedAtMs, endedAtMs: Math.max(endedAtMs, startedAtMs + 1), locale: "ja-JP", mimeType: "audio/webm" } });
+      if (result.status === "transcribed") { inputLock.current = false; await sendUserTurn(result.turn.text); }
+    } catch { setConversationError("音声を文字に変換できませんでした。テキスト入力でも続けられます。"); }
+    finally { setIsTranscribing(false); setIsResponding(false); inputLock.current = false; utteranceStartedAt.current = null; }
   }
 
   return (
@@ -127,6 +164,7 @@ export default function PracticePage() {
                 {isResponding ? "応答を待っています" : "発話を送る"}
               </button>
             </div>
+            <button className="secondary-action" type="button" onClick={toggleVoiceUtterance} disabled={isPaused || isResponding || isTranscribing}>{utteranceRecorder ? "発話を終了して文字起こしする" : "マイクで発話する"}</button>
             {conversationError ? <p className="status-error">{conversationError}</p> : null}
             <p className="conversation-state">開示済み要件: {getDisclosedLabels(conversation).join("、") || "まだありません"}</p>
           </section>
