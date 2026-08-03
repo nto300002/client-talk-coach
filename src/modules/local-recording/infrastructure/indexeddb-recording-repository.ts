@@ -9,6 +9,7 @@ import {
   type RecordingDeletionReason,
   type RecordingMetadata,
 } from "@/modules/local-recording/domain/recording-limit";
+import { hasSamePracticeCondition } from "@/modules/local-recording/domain/practice-history";
 
 export type StoredPracticeSession = {
   id: string;
@@ -199,6 +200,10 @@ export class IndexedDbRecordingRepository {
     return analyses.find((analysis): analysis is StoredAudioAnalysis => "result" in analysis);
   }
 
+  async hasAnalysisForSession(sessionId: string): Promise<boolean> {
+    return (await this.database.analyses.where("sessionId").equals(sessionId).count()) > 0;
+  }
+
   async removeExpiredRecordings(now: Date): Promise<number> {
     const expiration = now.getTime() - 30 * 24 * 60 * 60 * 1000;
     const expired = (await this.listActiveRecordings()).filter(
@@ -226,7 +231,9 @@ export class IndexedDbRecordingRepository {
   }
 
   async findPreviousMatchingSession(session: StoredPracticeSession): Promise<StoredPracticeSession | undefined> {
-    return (await this.listPracticeSessions()).find((candidate) => candidate.id !== session.id && candidate.scenarioId === session.scenarioId && candidate.sceneId === session.sceneId && candidate.difficultyLevel === session.difficultyLevel && candidate.clientTypeId === session.clientTypeId);
+    return (await this.listPracticeSessions()).find(
+      (candidate) => candidate.createdAt < session.createdAt && hasSamePracticeCondition(candidate, session),
+    );
   }
 
   async deletePracticeSession(sessionId: string): Promise<void> {

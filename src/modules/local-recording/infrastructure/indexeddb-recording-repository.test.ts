@@ -150,11 +150,13 @@ describe("IndexedDbRecordingRepository", () => {
 
     await repository.saveCompletedRecording(metadata, [chunk(metadata.id)]);
     await repository.savePracticeSession({ id: metadata.sessionId, createdAt: metadata.createdAt });
+    await repository.saveAnalysis({ id: "analysis-00", sessionId: metadata.sessionId });
     await repository.deleteAllData();
 
     expect(await database.recordings.count()).toBe(0);
     expect(await database.recordingChunks.count()).toBe(0);
     expect(await database.practiceSessions.count()).toBe(0);
+    expect(await database.analyses.count()).toBe(0);
   });
 
   it("lists sessions newest first and finds the latest prior session with the same conditions", async () => {
@@ -172,6 +174,7 @@ describe("IndexedDbRecordingRepository", () => {
 
     await expect(repository.listPracticeSessions()).resolves.toEqual([current, differentDifficulty, matching]);
     await expect(repository.findPreviousMatchingSession(current)).resolves.toEqual(matching);
+    await expect(repository.findPreviousMatchingSession(matching)).resolves.toBeUndefined();
   });
 
   it("deletes a practice session and its video data without affecting another session", async () => {

@@ -13,20 +13,17 @@ import {
   type StoredPracticeSession,
 } from "@/modules/local-recording/infrastructure/indexeddb-recording-repository";
 import type { RecordingMetadata } from "@/modules/local-recording/domain/recording-limit";
+import { deletionReasonMessage, filterByScenarioId } from "@/modules/local-recording/domain/practice-history";
 
 type Entry = StoredPracticeSession & {
   recording: RecordingMetadata | undefined;
   previous: StoredPracticeSession | undefined;
+  hasAnalysis: boolean;
 };
-
-const deletionReasonText = {
-  manual: "手動で削除しました",
-  retention_expired: "保存期限により自動削除されました",
-  recording_limit: "録画は保存上限により自動削除されました",
-} as const;
 
 export default function HistoryPage() {
   const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [scenarioFilter, setScenarioFilter] = useState("all");
 
   const load = useCallback(async () => {
     const repository = new IndexedDbRecordingRepository(new LocalPracticeDatabase());
@@ -36,6 +33,7 @@ export default function HistoryPage() {
         ...session,
         recording: await repository.findLatestRecordingMetadataForSession(session.id),
         previous: await repository.findPreviousMatchingSession(session),
+        hasAnalysis: await repository.hasAnalysisForSession(session.id),
       })),
     );
     setEntries(loaded);
@@ -69,16 +67,32 @@ export default function HistoryPage() {
     await load();
   }
 
+  const scenarioIds = [...new Set(entries?.map((entry) => entry.scenarioId) ?? [])].sort();
+  const visibleEntries = entries ? filterByScenarioId(entries, scenarioFilter) : undefined;
+
   return (
     <main>
       <section className="panel" aria-labelledby="history-title">
         <p className="eyebrow">ClientTalk Coach</p>
         <h1 id="history-title">練習履歴</h1>
+        {entries?.length ? (
+          <label className="history-filter" htmlFor="history-scenario-filter">
+            シチュエーションで絞り込む
+            <select
+              id="history-scenario-filter"
+              value={scenarioFilter}
+              onChange={(event) => setScenarioFilter(event.target.value)}
+            >
+              <option value="all">すべてのシチュエーション</option>
+              {scenarioIds.map((scenarioId) => <option key={scenarioId} value={scenarioId}>{scenarioId}</option>)}
+            </select>
+          </label>
+        ) : null}
         {entries === null ? <p>履歴を読み込んでいます。</p> : null}
         {entries?.length === 0 ? <p>まだ練習履歴はありません。</p> : null}
-        {entries?.length ? (
+        {visibleEntries?.length ? (
           <ul className="history-list">
-            {entries.map((entry) => (
+            {visibleEntries.map((entry) => (
               <li key={entry.id} className="history-entry">
                 <h2>{entry.scenarioId}</h2>
                 <p>
@@ -87,9 +101,10 @@ export default function HistoryPage() {
                 <p>
                   録画: {entry.recording?.status === "completed" ? "保存あり" : "なし"}
                   {entry.recording?.deletionReason
-                    ? `（${deletionReasonText[entry.recording.deletionReason]}）`
+                    ? `（${deletionReasonMessage(entry.recording.deletionReason)}）`
                     : ""}
                 </p>
+                <p>分析: {entry.hasAnalysis ? "保存あり" : "なし"}</p>
                 <p>
                   {entry.previous
                     ? `前回比較: ${new Date(entry.previous.createdAt).toLocaleDateString("ja-JP")}の同条件練習`
@@ -109,6 +124,7 @@ export default function HistoryPage() {
             ))}
           </ul>
         ) : null}
+        {entries?.length && visibleEntries?.length === 0 ? <p>この条件の練習履歴はありません。</p> : null}
         <div className="practice-controls">
           <button className="text-action" type="button" onClick={() => void deleteAll()}>
             すべての端末内データを削除

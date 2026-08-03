@@ -38,6 +38,23 @@ main {
   list-style: none;
 }
 
+.history-filter {
+  display: grid;
+  gap: 6px;
+  margin: 20px 0;
+  font-weight: 700;
+}
+
+.history-filter select {
+  min-height: 40px;
+  padding: 8px;
+  border: 1px solid #fdba74;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
 .history-entry {
   padding: 16px;
   border: 1px solid #fed7aa;

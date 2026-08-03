@@ -95,13 +95,39 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
 
   await page.goto("/history");
   await expect(page.getByRole("heading", { name: "練習履歴" })).toBeVisible();
-  await expect(page.getByText("initial-requirements-interview", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "initial-requirements-interview" })).toBeVisible();
   await expect(page.getByText("この条件では初回の練習です")).toBeVisible();
+  await expect(page.getByText("分析: 保存あり")).toBeVisible();
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "録画のみ削除" }).click();
   await expect(page.getByText("録画: なし（手動で削除しました）")).toBeVisible();
+  await expect(page.getByText("分析: 保存あり")).toBeVisible();
   await expect(page.getByRole("button", { name: "録画のみ削除" })).toHaveCount(0);
+  await page.goto("/results");
+  await expect(page.getByRole("heading", { name: "練習結果" })).toBeVisible();
+});
+
+test("compares matching sessions and confirms session and all-data deletion", async ({ page }) => {
+  await installBrowserMediaMocks(page);
+
+  await completePractice(page);
+  await page.goto("/history");
+  await expect(page.getByText("この条件では初回の練習です")).toBeVisible();
+
+  await completePractice(page);
+  await page.goto("/history");
+  await expect(page.locator(".history-entry")).toHaveCount(2);
+  await expect(page.getByText(/前回比較:/)).toHaveCount(1);
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "練習履歴を削除" }).first().click();
+  await expect(page.locator(".history-entry")).toHaveCount(1);
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "すべての端末内データを削除" }).click();
+  await expect(page.getByText("まだ練習履歴はありません。")).toBeVisible();
+  await expect(page.locator(".history-entry")).toHaveCount(0);
 });
 
 test("discloses an eligible client fact only after the matching question", async ({ page }) => {
@@ -200,6 +226,25 @@ async function installBrowserMediaMocks(page: Page) {
     Object.defineProperty(window, "MediaRecorder", { configurable: true, value: FakeMediaRecorder });
     HTMLMediaElement.prototype.play = () => Promise.resolve();
   });
+}
+
+async function completePractice(page: Page) {
+  await page.goto("/setup");
+  await page.getByRole("radio", { name: /初回要件ヒアリング/ }).check();
+  await page.getByRole("radio", { name: /福祉事業所の初回相談/ }).check();
+  await page.getByRole("radio", { name: /初級/ }).check();
+  await page.getByRole("radio", { name: /IT知識が少ない顧客/ }).check();
+  await page.getByRole("radio", { name: "質問を行う" }).check();
+  await page.getByLabel("練習前の緊張度").fill("4");
+  await page.getByLabel("練習前の自信度").fill("6");
+  await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
+  await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
+  await page.getByRole("button", { name: "録画して練習を開始する" }).click();
+  await page.getByRole("button", { name: "会話を終了する" }).click();
+  await page.getByLabel("練習後の緊張度").fill("3");
+  await page.getByLabel("練習後の自信度").fill("7");
+  await page.getByRole("checkbox", { name: "最後まで話せた" }).check();
+  await page.getByRole("button", { name: "自己評価を保存する" }).click();
 }
 
 test("keeps 20 recordings, deletes only the old video, and blocks all-favorite recording starts", async ({ page }) => {
