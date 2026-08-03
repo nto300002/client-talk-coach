@@ -57,6 +57,9 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await page.getByRole("button", { name: "録画して練習を開始する" }).click();
   await expect(page.getByRole("heading", { name: "AI顧客との練習" })).toBeVisible();
   await expect(page.getByText("録画中です")).toBeVisible();
+  await page.getByRole("button", { name: "マイクで発話する" }).click();
+  await page.getByRole("button", { name: "発話を終了して文字起こしする" }).click();
+  await expect(page.getByText("テスト発話を受け取りました")).toBeVisible();
 
   await page.getByRole("button", { name: "一時停止する" }).click();
   await expect(page.getByText("一時停止中")).toBeVisible();

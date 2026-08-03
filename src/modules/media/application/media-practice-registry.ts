@@ -91,6 +91,10 @@ export function getActiveMediaPractice(sessionId: string): ActiveMediaPractice |
   return activePractices.get(sessionId) ?? null;
 }
 
+export function getActiveMediaStream(sessionId: string): MediaStream | null {
+  return (activePractices.get(sessionId)?.preview.stream as MediaStream | undefined) ?? null;
+}
+
 export async function pauseMediaPractice(sessionId: string): Promise<void> {
   activePractices.get(sessionId)?.recording.pause();
 }
