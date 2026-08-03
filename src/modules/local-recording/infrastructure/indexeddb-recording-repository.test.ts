@@ -157,6 +157,48 @@ describe("IndexedDbRecordingRepository", () => {
     expect(await database.practiceSessions.count()).toBe(0);
   });
 
+  it("lists sessions newest first and finds the latest prior session with the same conditions", async () => {
+    const { repository } = createRepository();
+    const matching = practiceSession("session-matching", "2026-07-01T00:00:00.000Z");
+    const differentDifficulty = {
+      ...practiceSession("session-different", "2026-07-03T00:00:00.000Z"),
+      difficultyLevel: 3,
+    };
+    const current = practiceSession("session-current", "2026-07-04T00:00:00.000Z");
+
+    await repository.savePracticeSession(matching);
+    await repository.savePracticeSession(differentDifficulty);
+    await repository.savePracticeSession(current);
+
+    await expect(repository.listPracticeSessions()).resolves.toEqual([current, differentDifficulty, matching]);
+    await expect(repository.findPreviousMatchingSession(current)).resolves.toEqual(matching);
+  });
+
+  it("deletes a practice session and its video data without affecting another session", async () => {
+    const { database, repository } = createRepository();
+    const target = practiceSession("session-target", "2026-07-01T00:00:00.000Z");
+    const remaining = practiceSession("session-remaining", "2026-07-02T00:00:00.000Z");
+    const targetRecording = { ...recording("recording-target", target.createdAt), sessionId: target.id };
+    const remainingRecording = { ...recording("recording-remaining", remaining.createdAt), sessionId: remaining.id };
+
+    await repository.savePracticeSession(target);
+    await repository.savePracticeSession(remaining);
+    await repository.saveAnalysis({ id: "analysis-target", sessionId: target.id });
+    await repository.saveAnalysis({ id: "analysis-remaining", sessionId: remaining.id });
+    await repository.saveCompletedRecording(targetRecording, [chunk(targetRecording.id)]);
+    await repository.saveCompletedRecording(remainingRecording, [chunk(remainingRecording.id)]);
+
+    await repository.deletePracticeSession(target.id);
+
+    expect(await database.practiceSessions.get(target.id)).toBeUndefined();
+    expect(await database.analyses.where("sessionId").equals(target.id).count()).toBe(0);
+    expect(await database.recordings.where("sessionId").equals(target.id).count()).toBe(0);
+    expect(await database.recordingChunks.where("recordingId").equals(targetRecording.id).count()).toBe(0);
+    expect(await database.practiceSessions.get(remaining.id)).toEqual(remaining);
+    expect(await database.analyses.where("sessionId").equals(remaining.id).count()).toBe(1);
+    expect(await database.recordings.where("sessionId").equals(remaining.id).count()).toBe(1);
+  });
+
   it("saves and loads audio analysis independently from recording video data", async () => {
     const { repository } = createRepository();
     const analysis = audioAnalysis("session-audio");
@@ -197,6 +239,18 @@ function recording(id: string, createdAt: string): RecordingMetadata {
     deletionReason: null,
     isFavorite: false,
     status: "completed",
+  };
+}
+
+function practiceSession(id: string, createdAt: string) {
+  return {
+    id,
+    createdAt,
+    scenarioId: "requirements-hearing",
+    sceneId: "welfare-first-call",
+    difficultyLevel: 2,
+    clientTypeId: "low-it-literacy",
+    durationMinutes: 7,
   };
 }
 

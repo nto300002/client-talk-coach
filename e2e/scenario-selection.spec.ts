@@ -92,6 +92,16 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await page.getByRole("button", { name: "60秒の再練習を開始する" }).click();
   await page.getByRole("button", { name: "再練習を完了する" }).click();
   await expect(page.getByRole("status")).toContainText("元の練習に紐付けて保存しました");
+
+  await page.goto("/history");
+  await expect(page.getByRole("heading", { name: "練習履歴" })).toBeVisible();
+  await expect(page.getByText("initial-requirements-interview", { exact: true })).toBeVisible();
+  await expect(page.getByText("この条件では初回の練習です")).toBeVisible();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "録画のみ削除" }).click();
+  await expect(page.getByText("録画: なし（手動で削除しました）")).toBeVisible();
+  await expect(page.getByRole("button", { name: "録画のみ削除" })).toHaveCount(0);
 });
 
 test("discloses an eligible client fact only after the matching question", async ({ page }) => {
@@ -117,6 +127,36 @@ test("discloses an eligible client fact only after the matching question", async
 
 async function installBrowserMediaMocks(page: Page) {
   await page.addInitScript(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/api/v1/stt/transcriptions")) {
+        return new Response(JSON.stringify({
+          data: {
+            utteranceId: "e2e-utterance",
+            transcript: "テスト発話を受け取りました",
+            confidence: 0.99,
+            startedAtMs: 0,
+            endedAtMs: 1,
+            isEmpty: false,
+          },
+        }), { headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("/api/v1/ai/client-responses")) {
+        const body = typeof init?.body === "string" ? JSON.parse(init.body) as {
+          scenarioContext?: { eligibleFacts?: Array<{ id: string; content: string }> };
+        } : {};
+        const facts = body.scenarioContext?.eligibleFacts ?? [];
+        return new Response(JSON.stringify({
+          data: {
+            text: facts.length ? facts.map((fact) => fact.content).join(" ") : "承知しました。続けて教えてください。",
+            disclosedFactIds: facts.map((fact) => fact.id),
+          },
+        }), { headers: { "content-type": "application/json" } });
+      }
+      return originalFetch(input, init);
+    };
+
     const stream = new MediaStream();
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
@@ -132,10 +172,15 @@ async function installBrowserMediaMocks(page: Page) {
       ondataavailable: ((event: { data: Blob }) => void) | null = null;
       onstop: (() => void) | null = null;
       onerror: ((event: { error: Error }) => void) | null = null;
+      private readonly mimeType: string;
+
+      constructor(_stream: MediaStream, options?: { mimeType?: string }) {
+        this.mimeType = options?.mimeType ?? "video/webm";
+      }
 
       start() {
         this.state = "recording";
-        this.ondataavailable?.({ data: new Blob(["recording"], { type: "video/webm" }) });
+        this.ondataavailable?.({ data: new Blob(["recording"], { type: this.mimeType }) });
       }
 
       pause() {

@@ -26,6 +26,7 @@ import { saveScenarioState } from "@/modules/scenario-evaluation/infrastructure/
 import { saveConversationTurns } from "@/modules/conversation-analysis/infrastructure/session-storage-conversation-turns";
 import { HttpTranscriptionAdapter } from "@/modules/transcription/infrastructure/http-transcription-adapter";
 import { ProcessUserUtterance } from "@/modules/transcription/application/process-user-utterance";
+import { IndexedDbRecordingRepository, LocalPracticeDatabase } from "@/modules/local-recording/infrastructure/indexeddb-recording-repository";
 
 const sessionStorageKey = "client-talk-coach.practice-session";
 
@@ -72,6 +73,15 @@ export default function PracticePage() {
     }
 
     await finishMediaPractice(currentSession.id);
+    await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).savePracticeSession({
+      id: currentSession.id,
+      createdAt: new Date().toISOString(),
+      scenarioId: currentSession.configuration.scenarioId,
+      sceneId: currentSession.configuration.sceneId,
+      difficultyLevel: currentSession.configuration.difficultyLevel,
+      clientTypeId: currentSession.configuration.clientTypeId,
+      durationMinutes: currentSession.configuration.durationMinutes,
+    });
     if (conversation) {
       saveScenarioState(currentSession.id, conversation.state);
       saveConversationTurns(currentSession.id, conversation.turns);

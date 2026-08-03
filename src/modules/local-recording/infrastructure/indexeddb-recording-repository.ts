@@ -13,6 +13,11 @@ import {
 export type StoredPracticeSession = {
   id: string;
   createdAt: string;
+  scenarioId: string;
+  sceneId: string;
+  difficultyLevel: number;
+  clientTypeId: string;
+  durationMinutes: number;
 };
 
 export type StoredAnalysis = {
@@ -164,10 +169,14 @@ export class IndexedDbRecordingRepository {
   }
 
   async findLatestRecordingForSession(sessionId: string): Promise<RecordingMetadata | undefined> {
-    const recordings = await this.database.recordings.where("sessionId").equals(sessionId).toArray();
+    const recordings = await this.listRecordingsForSession(sessionId);
     return recordings
       .filter((recording) => recording.status === "completed" && recording.deletedAt === null)
-      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+      [0];
+  }
+
+  async findLatestRecordingMetadataForSession(sessionId: string): Promise<RecordingMetadata | undefined> {
+    return (await this.listRecordingsForSession(sessionId))[0];
   }
 
   async loadRecordingBlob(recordingId: string): Promise<Blob | null> {
@@ -208,8 +217,26 @@ export class IndexedDbRecordingRepository {
     return expired.length;
   }
 
-  async savePracticeSession(session: StoredPracticeSession): Promise<void> {
-    await this.database.practiceSessions.put(session);
+  async savePracticeSession(session: Omit<StoredPracticeSession, "scenarioId" | "sceneId" | "difficultyLevel" | "clientTypeId" | "durationMinutes"> & Partial<Pick<StoredPracticeSession, "scenarioId" | "sceneId" | "difficultyLevel" | "clientTypeId" | "durationMinutes">>): Promise<void> {
+    await this.database.practiceSessions.put({ scenarioId: "unknown", sceneId: "unknown", difficultyLevel: 0, clientTypeId: "unknown", durationMinutes: 0, ...session });
+  }
+
+  async listPracticeSessions(): Promise<StoredPracticeSession[]> {
+    return (await this.database.practiceSessions.toArray()).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  async findPreviousMatchingSession(session: StoredPracticeSession): Promise<StoredPracticeSession | undefined> {
+    return (await this.listPracticeSessions()).find((candidate) => candidate.id !== session.id && candidate.scenarioId === session.scenarioId && candidate.sceneId === session.sceneId && candidate.difficultyLevel === session.difficultyLevel && candidate.clientTypeId === session.clientTypeId);
+  }
+
+  async deletePracticeSession(sessionId: string): Promise<void> {
+    await this.database.transaction("rw", this.database.practiceSessions, this.database.analyses, this.database.recordings, this.database.recordingChunks, async () => {
+      await this.database.practiceSessions.delete(sessionId);
+      await this.database.analyses.where("sessionId").equals(sessionId).delete();
+      const recordings = await this.database.recordings.where("sessionId").equals(sessionId).toArray();
+      if (recordings.length) await this.database.recordingChunks.where("recordingId").anyOf(recordings.map((recording) => recording.id)).delete();
+      await this.database.recordings.where("sessionId").equals(sessionId).delete();
+    });
   }
 
   async saveAnalysis(analysis: StoredAnalysis): Promise<void> {
@@ -236,6 +263,13 @@ export class IndexedDbRecordingRepository {
 
   protected async deleteRecordingChunks(recordingId: string): Promise<void> {
     await this.database.recordingChunks.where("recordingId").equals(recordingId).delete();
+  }
+
+  private async listRecordingsForSession(sessionId: string): Promise<RecordingMetadata[]> {
+    return (await this.database.recordings.where("sessionId").equals(sessionId).toArray()).sort((left, right) => {
+      const createdAtComparison = right.createdAt.localeCompare(left.createdAt);
+      return createdAtComparison === 0 ? right.id.localeCompare(left.id) : createdAtComparison;
+    });
   }
 
   private async markVideoDeleted(
