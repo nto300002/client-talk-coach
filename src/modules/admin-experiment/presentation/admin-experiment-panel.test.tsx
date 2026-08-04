@@ -14,7 +14,9 @@ afterEach(() => {
 });
 
 const repository = {
-  saveScenario: () => ({ version: 1 }),
+  listPromptVersions: () => [],
+  listScenarioVersions: () => [],
+  saveScenario: () => ({ version: 1, id: "scenario:v1", scenarioId: "scenario", definition: technicalMvpScenarioFixtures[0], savedAt: "now" }),
   savePrompt: () => ({ id: "prompt", name: "prompt", instruction: "prompt", version: 1, savedAt: "now" }),
 };
 
@@ -37,5 +39,10 @@ describe("AdminExperimentPanel", () => {
     await user.click(screen.getByRole("button", { name: "固定フィクスチャで比較" }));
     expect(screen.getByText("簡潔な顧客")).toBeVisible();
     expect(screen.getByText("確認重視の顧客")).toBeVisible();
+    expect(screen.getByText(/評価観点: 簡潔さ/)).toBeVisible();
+
+    await user.selectOptions(screen.getByLabelText("会話モデル設定"), "mock-strict");
+    await user.click(screen.getByRole("button", { name: "固定フィクスチャで比較" }));
+    expect(screen.getAllByText(/厳格判定の未確認項目/).length).toBe(2);
   });
 });

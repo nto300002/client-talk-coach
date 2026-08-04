@@ -21,6 +21,8 @@ export type PromptVersion = {
   savedAt: string;
 };
 
+export type ExperimentModel = "mock-standard" | "mock-strict";
+
 export type DeveloperFixture = {
   id: string;
   label: string;
@@ -34,6 +36,10 @@ export type PromptComparisonResult = {
   questionCategoryCount: number;
   candidateCount: number;
   strengthCount: number;
+  focus: string;
+  focusFindingCount: number;
+  coverageGapCount: number;
+  model: ExperimentModel;
 };
 
 export const developerFixture: DeveloperFixture = {
@@ -87,6 +93,7 @@ export function duplicateScenario(definition: ScenarioDefinition): ScenarioDefin
 export function comparePromptVersions(
   promptVersions: PromptVersion[],
   fixture: DeveloperFixture,
+  model: ExperimentModel = "mock-standard",
 ): PromptComparisonResult[] {
   const analysis = analyzeConversation(fixture.turns);
   return promptVersions.map((prompt) => ({
@@ -96,5 +103,34 @@ export function comparePromptVersions(
     questionCategoryCount: analysis.questionCategories.length,
     candidateCount: analysis.candidates.length,
     strengthCount: analysis.strengths.length,
+    ...evaluatePromptFocus(prompt.instruction, analysis, model),
+    model,
   }));
+}
+
+function evaluatePromptFocus(
+  instruction: string,
+  analysis: ReturnType<typeof analyzeConversation>,
+  model: ExperimentModel,
+) {
+  const normalized = instruction.toLowerCase();
+  const focus = normalized.includes("確認") || normalized.includes("質問")
+    ? "確認質問"
+    : normalized.includes("短") || normalized.includes("三文")
+      ? "簡潔さ"
+      : "会話構造";
+
+  const focusFindingCount = focus === "確認質問"
+    ? analysis.questionCategories.length + analysis.strengths.filter((finding) => finding.category === "agreement").length
+    : focus === "簡潔さ"
+      ? analysis.candidates.filter((finding) => finding.category === "structure").length
+      : analysis.candidates.length + analysis.strengths.length;
+
+  const coverageGapCount = model === "mock-strict"
+    ? ["purpose", "current-workflow", "security", "permission"].filter(
+        (category) => !analysis.questionCategories.includes(category as typeof analysis.questionCategories[number]),
+      ).length
+    : 0;
+
+  return { focus, focusFindingCount, coverageGapCount };
 }
