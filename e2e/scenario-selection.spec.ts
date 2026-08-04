@@ -151,12 +151,46 @@ test("discloses an eligible client fact only after the matching question", async
   await expect(page.getByText("開示済み要件: 現行Excel管理、個人情報")).toBeVisible();
 });
 
+test("retries failed AI and STT requests, then can safely end the practice", async ({ page }) => {
+  await installBrowserMediaMocks(page);
+  await startPractice(page);
+
+  await page.evaluate(() => { (window as Window & { e2eAiFailuresRemaining: number }).e2eAiFailuresRemaining = 2; });
+  await page.getByLabel("顧客への発話（テスト入力）").fill("現在の業務について教えてください。");
+  await page.getByRole("button", { name: "発話を送る" }).click();
+  await expect(page.getByText("AI顧客の応答を取得できませんでした。もう一度お試しください。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "AI応答を再試行" })).toBeVisible();
+  await page.getByRole("button", { name: "AI応答を再試行" }).click();
+  await expect(page.getByText("承知しました。続けて教えてください。")).toBeVisible();
+
+  await page.evaluate(() => { (window as Window & { e2eSttFailuresRemaining: number }).e2eSttFailuresRemaining = 3; });
+  await page.getByRole("button", { name: "マイクで発話する" }).click();
+  await page.getByRole("button", { name: "発話を終了して文字起こしする" }).click();
+  await expect(page.getByText("音声を文字に変換できませんでした。テキスト入力でも続けられます。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "文字起こしを再試行" })).toBeVisible();
+  await page.getByRole("button", { name: "文字起こしを再試行" }).click();
+  await expect(page.getByText("テスト発話を受け取りました")).toBeVisible();
+
+  await page.getByRole("button", { name: "安全に終了する" }).click();
+  await expect(page).toHaveURL(/\/self-review$/);
+  await expect(page.getByText("終了理由: 安全終了")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const session = JSON.parse(window.sessionStorage.getItem("client-talk-coach.practice-session") ?? "{}");
+    return session.preserveRecoverableData;
+  })).toBe(true);
+});
+
 async function installBrowserMediaMocks(page: Page) {
   await page.addInitScript(() => {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.includes("/api/v1/stt/transcriptions")) {
+        const failureWindow = window as Window & { e2eSttFailuresRemaining?: number };
+        if ((failureWindow.e2eSttFailuresRemaining ?? 0) > 0) {
+          failureWindow.e2eSttFailuresRemaining! -= 1;
+          return new Response("unavailable", { status: 503 });
+        }
         return new Response(JSON.stringify({
           data: {
             utteranceId: "e2e-utterance",
@@ -169,6 +203,11 @@ async function installBrowserMediaMocks(page: Page) {
         }), { headers: { "content-type": "application/json" } });
       }
       if (url.includes("/api/v1/ai/client-responses")) {
+        const failureWindow = window as Window & { e2eAiFailuresRemaining?: number };
+        if ((failureWindow.e2eAiFailuresRemaining ?? 0) > 0) {
+          failureWindow.e2eAiFailuresRemaining! -= 1;
+          return new Response("unavailable", { status: 503 });
+        }
         const body = typeof init?.body === "string" ? JSON.parse(init.body) as {
           scenarioContext?: { eligibleFacts?: Array<{ id: string; content: string }> };
         } : {};
@@ -247,13 +286,27 @@ async function completePractice(page: Page) {
   await page.getByRole("button", { name: "自己評価を保存する" }).click();
 }
 
+async function startPractice(page: Page) {
+  await page.goto("/setup");
+  await page.getByRole("radio", { name: /初回要件ヒアリング/ }).check();
+  await page.getByRole("radio", { name: /福祉事業所の初回相談/ }).check();
+  await page.getByRole("radio", { name: /初級/ }).check();
+  await page.getByRole("radio", { name: /IT知識が少ない顧客/ }).check();
+  await page.getByRole("radio", { name: "質問を行う" }).check();
+  await page.getByLabel("練習前の緊張度").fill("4");
+  await page.getByLabel("練習前の自信度").fill("6");
+  await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
+  await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
+  await page.getByRole("button", { name: "録画して練習を開始する" }).click();
+}
+
 test("keeps 20 recordings, deletes only the old video, and blocks all-favorite recording starts", async ({ page }) => {
   await page.goto("/recording-storage-test");
 
   await page.getByRole("button", { name: "20件の録画を作成" }).click();
   await expect(page.getByText("保存済み録画: 20 / 20")).toBeVisible();
 
-  await page.getByRole("button", { name: "21本目を保存" }).click();
+  await page.getByRole("button", { name: "21本目を保存", exact: true }).click();
   await expect(page.getByText("保存済み録画: 20 / 20")).toBeVisible();
   await expect(page.getByText("recording-00: 保存上限により自動削除されました")).toBeVisible();
   await expect(page.getByText("recording-00 の分析結果は保持されています")).toBeVisible();
@@ -262,6 +315,18 @@ test("keeps 20 recordings, deletes only the old video, and blocks all-favorite r
   await expect(page.getByRole("status")).toHaveText("20件をすべてお気に入りにしました");
   await page.getByRole("button", { name: "録画を開始する" }).click();
   await expect(page.getByText("お気に入りを解除または動画を削除してください")).toBeVisible();
+});
+
+test("keeps all existing recordings when the twenty-first recording save fails", async ({ page }) => {
+  await page.goto("/recording-storage-test");
+
+  await page.getByRole("button", { name: "20件の録画を作成" }).click();
+  await expect(page.getByText("保存済み録画: 20 / 20")).toBeVisible();
+  await page.getByRole("button", { name: "失敗する21本目を保存" }).click();
+
+  await expect(page.getByRole("status")).toHaveText("21本目の保存に失敗しました。既存録画は保持されています");
+  await expect(page.getByText("保存済み録画: 20 / 20")).toBeVisible();
+  await expect(page.getByText(/保存上限により自動削除されました/)).toHaveCount(0);
 });
 
 test("shows timestamped audio markers from a mocked fixture analysis", async ({ page }) => {

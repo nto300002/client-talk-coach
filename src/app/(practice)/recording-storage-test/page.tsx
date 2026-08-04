@@ -57,6 +57,18 @@ export default function RecordingStorageTestPage() {
     await refresh();
   }
 
+  async function failTwentyFirstSave() {
+    try {
+      await repository().saveCompletedRecording(createRecording("recording-failed", 20), [{
+        ...createChunk("recording-failed"),
+        id: undefined as unknown as string,
+      }]);
+    } catch {
+      setMessage("21本目の保存に失敗しました。既存録画は保持されています");
+    }
+    await refresh();
+  }
+
   async function favoriteAll() {
     const currentRepository = repository();
     for (let index = 1; index <= 20; index += 1) {
@@ -91,6 +103,9 @@ export default function RecordingStorageTestPage() {
           </button>
           <button className="primary-action" type="button" onClick={() => void saveTwentyFirst()}>
             21本目を保存
+          </button>
+          <button className="secondary-action" type="button" onClick={() => void failTwentyFirstSave()}>
+            失敗する21本目を保存
           </button>
           <button className="secondary-action" type="button" onClick={() => void favoriteAll()}>
             20件をすべてお気に入りにする
