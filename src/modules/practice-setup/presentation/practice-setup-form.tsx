@@ -87,7 +87,7 @@ export function PracticeSetupForm({ scenarios, onStart }: PracticeSetupFormProps
 
     if (!onStart) {
       window.sessionStorage.setItem("client-talk-coach.practice-setup", JSON.stringify(configuration));
-      router.push("/device-check");
+      router.push("/practice-confirm");
     }
   }
 
