@@ -34,7 +34,7 @@ export default function SelfReviewPage() {
           <div className="self-review-saved" aria-live="polite">
             <p>自己評価を保存しました。</p>
             <p>緊張度の変化: {formatDifference(review.tensionDifference)} / 自信度の変化: {formatDifference(review.confidenceDifference)}</p>
-            <Link className="primary-action" href="/results">結果を見る</Link>
+            <Link className="primary-action" href="/analysis">分析を確認する</Link>
           </div>
         ) : null}
         <Link className="secondary-link" href="/setup">新しい練習を設定する</Link>

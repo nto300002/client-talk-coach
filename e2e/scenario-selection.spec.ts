@@ -33,6 +33,8 @@ test("completes practice setup and reaches device check", async ({ page }) => {
   await expect(startButton).toBeEnabled();
   await startButton.click();
 
+  await expect(page).toHaveURL(/\/practice-confirm$/);
+  await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
   await expect(page).toHaveURL(/\/device-check$/);
   await expect(page.getByRole("heading", { name: "カメラとマイクを確認する" })).toBeVisible();
   await expect(page.getByText("7分の練習を開始する前に")).toBeVisible();
@@ -49,6 +51,8 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await page.getByRole("radio", { name: "質問を行う" }).check();
   await page.getByLabel("練習前の緊張度").fill("4");
   await page.getByLabel("練習前の自信度").fill("6");
+  await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
+  await expect(page).toHaveURL(/\/practice-confirm$/);
   await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
 
   await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
@@ -75,7 +79,7 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await page.getByRole("checkbox", { name: "最後まで話せた" }).check();
   await page.getByRole("button", { name: "自己評価を保存する" }).click();
   await expect(page.getByText("自己評価を保存しました。")).toBeVisible();
-  await page.getByRole("link", { name: "結果を見る" }).click();
+  await page.getByRole("link", { name: "分析を確認する" }).click();
   await expect(page.getByRole("heading", { name: "練習結果" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "今回できたこと" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "次に練習すること" })).toBeVisible();
@@ -140,6 +144,8 @@ test("discloses an eligible client fact only after the matching question", async
   await page.getByRole("radio", { name: "質問を行う" }).check();
   await page.getByLabel("練習前の緊張度").fill("4");
   await page.getByLabel("練習前の自信度").fill("6");
+  await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
+  await expect(page).toHaveURL(/\/practice-confirm$/);
   await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
   await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
   await page.getByRole("button", { name: "録画して練習を開始する" }).click();
@@ -277,6 +283,8 @@ async function completePractice(page: Page) {
   await page.getByLabel("練習前の緊張度").fill("4");
   await page.getByLabel("練習前の自信度").fill("6");
   await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
+  await expect(page).toHaveURL(/\/practice-confirm$/);
+  await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
   await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
   await page.getByRole("button", { name: "録画して練習を開始する" }).click();
   await page.getByRole("button", { name: "会話を終了する" }).click();
@@ -295,6 +303,8 @@ async function startPractice(page: Page) {
   await page.getByRole("radio", { name: "質問を行う" }).check();
   await page.getByLabel("練習前の緊張度").fill("4");
   await page.getByLabel("練習前の自信度").fill("6");
+  await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
+  await expect(page).toHaveURL(/\/practice-confirm$/);
   await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
   await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
   await page.getByRole("button", { name: "録画して練習を開始する" }).click();
@@ -345,4 +355,33 @@ test("shows a mock STT transcript for a fixture utterance", async ({ page }) => 
 
   await page.getByRole("button", { name: "フィクスチャ発話を文字起こしする" }).click();
   await expect(page.getByText("文字起こし: テスト発話を受け取りました")).toBeVisible();
+});
+
+test("routes from home to the normal, management, recovery, and admin entry points", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "顧客折衝練習" })).toBeVisible();
+  await page.getByRole("link", { name: "新しい練習を始める" }).click();
+  await expect(page).toHaveURL(/\/setup$/);
+
+  await page.goto("/");
+  await page.getByRole("link", { name: "録画管理" }).click();
+  await expect(page.getByRole("heading", { name: "録画管理" })).toBeVisible();
+  await page.getByRole("link", { name: "練習履歴を開く" }).click();
+  await expect(page).toHaveURL(/\/history$/);
+
+  await page.goto("/recovery");
+  await expect(page.getByText("復旧が必要な中断データはありません。")).toBeVisible();
+  await page.goto("/admin/experiments");
+  await expect(page.getByRole("heading", { name: "管理者用実験モード" })).toBeVisible();
+});
+
+test("shows safe fallbacks for direct routes without prerequisite data", async ({ page }) => {
+  await page.goto("/practice-confirm");
+  await expect(page.getByRole("heading", { name: "練習設定が見つかりません" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "練習設定へ" })).toHaveAttribute("href", "/setup");
+
+  await page.goto("/practice");
+  await expect(page.getByRole("heading", { name: "練習設定が見つかりません" })).toBeVisible();
+  await page.goto("/results");
+  await expect(page.getByRole("heading", { name: "自己評価が必要です" })).toBeVisible();
 });
