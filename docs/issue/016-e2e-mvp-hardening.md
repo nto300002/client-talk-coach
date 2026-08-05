@@ -69,3 +69,8 @@ E2E tests should be written before final hardening work. Tests use deterministic
 - Run or document production connection smoke tests.
 - Document any skipped tests with reason and follow-up.
 
+## Production Smoke-Test Policy
+
+- `npm run smoke:providers` is part of local and CI verification. It runs in mock mode and does not contact external providers.
+- `npm run smoke:providers:production` is an opt-in release check. It requires non-private test credentials in `.env.local` and verifies provider reachability without sending recordings, real transcripts, self-review, or evaluation data.
+- Production smoke testing is skipped when those credentials are unavailable. Before a public release, run it with a dedicated test project and record the result in the release checklist.
