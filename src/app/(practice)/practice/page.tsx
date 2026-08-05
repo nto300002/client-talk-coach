@@ -38,6 +38,8 @@ export default function PracticePage() {
     session ? createConversationRuntime(session) : null,
   );
   const [conversationError, setConversationError] = useState<string | null>(null);
+  const [failedUserText, setFailedUserText] = useState<string | null>(null);
+  const [failedUtterance, setFailedUtterance] = useState<CapturedUtterance | null>(null);
   const [isResponding, setIsResponding] = useState(false);
   const [utteranceRecorder, setUtteranceRecorder] = useState<MediaRecorder | null>(null);
   const utteranceStartedAt = useRef<number | null>(null);
@@ -113,7 +115,9 @@ export default function PracticePage() {
       saveScenarioState(currentSession.id, nextConversation.state);
       saveConversationTurns(currentSession.id, nextConversation.turns);
       setConversation(nextConversation);
+      setFailedUserText(null);
     } catch {
+      setFailedUserText(text);
       setConversationError("AI顧客の応答を取得できませんでした。もう一度お試しください。");
     } finally {
       setIsResponding(false); inputLock.current = false;
@@ -132,7 +136,6 @@ export default function PracticePage() {
     const recorder = new MediaRecorder(stream, { mimeType });
     recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
     recorder.onstop = () => { void transcribeAndSend(new Blob(chunks, { type: mimeType }), utteranceStartedAt.current ?? 0, Math.floor(performance.now())); };
-    // eslint-disable-next-line react-hooks/purity -- this runs only from the user's click handler.
     utteranceStartedAt.current = Math.floor(performance.now());
     recorder.start(); setUtteranceRecorder(recorder);
   }
@@ -143,8 +146,15 @@ export default function PracticePage() {
     try {
       inputLock.current = true; setIsTranscribing(true); setConversationError(null);
       const result = await new ProcessUserUtterance(new HttpTranscriptionAdapter()).execute({ audio, isSpeech: true, metadata: { sessionId: currentSession.id, utteranceId: crypto.randomUUID(), startedAtMs, endedAtMs: Math.max(endedAtMs, startedAtMs + 1), locale: "ja-JP", mimeType: "audio/webm" } });
-      if (result.status === "transcribed") { inputLock.current = false; await sendUserTurn(result.turn.text); }
-    } catch { setConversationError("音声を文字に変換できませんでした。テキスト入力でも続けられます。"); }
+      if (result.status === "transcribed") {
+        setFailedUtterance(null);
+        inputLock.current = false;
+        await sendUserTurn(result.turn.text);
+      }
+    } catch {
+      setFailedUtterance({ audio, startedAtMs, endedAtMs });
+      setConversationError("音声を文字に変換できませんでした。テキスト入力でも続けられます。");
+    }
     finally { setIsTranscribing(false); setIsResponding(false); inputLock.current = false; utteranceStartedAt.current = null; }
   }
 
@@ -169,13 +179,15 @@ export default function PracticePage() {
             </div>
             <label htmlFor="practice-utterance">顧客への発話（テスト入力）</label>
             <div className="conversation-entry">
-              <input id="practice-utterance" value={draft} onChange={(event) => setDraft(event.target.value)} disabled={isPaused || isResponding} />
+              <input id="practice-utterance" value={draft} onChange={(event) => { setDraft(event.target.value); setFailedUserText(null); }} disabled={isPaused || isResponding} />
               <button className="secondary-action" type="button" onClick={() => void sendUserTurn()} disabled={!draft.trim() || isPaused || isResponding}>
                 {isResponding ? "応答を待っています" : "発話を送る"}
               </button>
             </div>
             <button className="secondary-action" type="button" onClick={toggleVoiceUtterance} disabled={isPaused || isResponding || isTranscribing}>{utteranceRecorder ? "発話を終了して文字起こしする" : "マイクで発話する"}</button>
             {conversationError ? <p className="status-error">{conversationError}</p> : null}
+            {failedUserText ? <button className="secondary-action" type="button" onClick={() => void sendUserTurn(failedUserText)} disabled={isPaused || isResponding || isTranscribing}>AI応答を再試行</button> : null}
+            {failedUtterance ? <button className="secondary-action" type="button" onClick={() => void transcribeAndSend(failedUtterance.audio, failedUtterance.startedAtMs, failedUtterance.endedAtMs)} disabled={isPaused || isResponding || isTranscribing}>文字起こしを再試行</button> : null}
             <p className="conversation-state">開示済み要件: {getDisclosedLabels(conversation).join("、") || "まだありません"}</p>
           </section>
         ) : null}
@@ -211,6 +223,12 @@ type ConversationRuntime = {
   definition: (typeof technicalMvpScenarioFixtures)[number];
   state: ScenarioState;
   turns: AiClientTurn[];
+};
+
+type CapturedUtterance = {
+  audio: Blob;
+  startedAtMs: number;
+  endedAtMs: number;
 };
 
 function createConversationRuntime(session: PracticeSession): ConversationRuntime | null {
