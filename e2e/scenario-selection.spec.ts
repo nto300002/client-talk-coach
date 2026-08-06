@@ -68,6 +68,10 @@ test("completes practice setup and reaches device check", async ({ page }) => {
   await startButton.click();
 
   await expect(page).toHaveURL(/\/practice-confirm$/);
+  await expect(page.getByText("初回要件ヒアリング", { exact: true })).toBeVisible();
+  await expect(page.getByText("福祉事業所の初回相談", { exact: true })).toBeVisible();
+  await expect(page.getByText("IT知識が少ない顧客", { exact: true })).toBeVisible();
+  await expect(page.getByText("質問を行う", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
   await expect(page).toHaveURL(/\/device-check$/);
   await expect(page.getByRole("heading", { name: "カメラとマイクを確認する" })).toBeVisible();
@@ -127,6 +131,11 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await expect(page.getByText("録画中です")).toBeVisible();
 
   await page.getByRole("button", { name: "会話を終了する" }).click();
+  await expect(page.getByRole("dialog")).toContainText("会話を終了しますか");
+  await page.getByRole("button", { name: "会話へ戻る" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "会話を終了する" }).click();
+  await page.getByRole("button", { name: "終了して自己評価へ進む" }).click();
   await expect(page).toHaveURL(/\/self-review$/);
   await expect(page.getByRole("heading", { name: "練習後の自己評価" })).toBeVisible();
   await expect(page.getByRole("link", { name: "結果を見る" })).toHaveCount(0);
@@ -239,6 +248,9 @@ test("retries failed AI and STT requests, then can safely end the practice", asy
   await expect(page.getByText("テスト発話を受け取りました")).toBeVisible();
 
   await page.getByRole("button", { name: "安全に終了する" }).click();
+  await expect(page.getByRole("dialog")).toContainText("安全に練習を終了しますか");
+  await expect(page.getByRole("dialog")).not.toContainText("失敗");
+  await page.getByRole("dialog").getByRole("button", { name: "安全に終了する" }).click();
   await expect(page).toHaveURL(/\/self-review$/);
   await expect(page.getByText("終了理由: 安全終了")).toBeVisible();
   await expect.poll(() => page.evaluate(() => {
@@ -255,6 +267,7 @@ test("passes confirmed user speech into the local audio analysis", async ({ page
   await page.getByRole("button", { name: "発話を送る" }).click();
   await expect(page.getByText("承知しました。続けて教えてください。")).toBeVisible();
   await page.getByRole("button", { name: "会話を終了する" }).click();
+  await page.getByRole("button", { name: "終了して自己評価へ進む" }).click();
   await expect(page).toHaveURL(/\/self-review$/);
 
   await expect.poll(() => readLatestAudioAnalysis(page)).toEqual(expect.objectContaining({ fillerCount: 1 }));
@@ -380,6 +393,7 @@ async function completePractice(page: Page) {
   await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
   await page.getByRole("button", { name: "録画して練習を開始する" }).click();
   await page.getByRole("button", { name: "会話を終了する" }).click();
+  await page.getByRole("button", { name: "終了して自己評価へ進む" }).click();
   await page.getByLabel("練習後の緊張度").fill("3");
   await page.getByLabel("練習後の自信度").fill("7");
   await page.getByRole("checkbox", { name: "最後まで話せた" }).check();
