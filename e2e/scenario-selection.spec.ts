@@ -10,6 +10,19 @@ test("shows the home dashboard primary action and local storage summary", async 
   expect(await page.locator("body").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test("keeps the light-orange theme readable with a visible keyboard focus state", async ({ page }) => {
+  await page.goto("/setup");
+  await page.getByRole("radio", { name: /初回要件ヒアリング/ }).focus();
+
+  await expect(page.getByRole("radio", { name: /初回要件ヒアリング/ })).toBeFocused();
+  await expect(page.getByRole("radio", { name: /初回要件ヒアリング/ }).evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return { backgroundColor: window.getComputedStyle(document.documentElement).backgroundColor, outlineStyle: style.outlineStyle };
+  })).resolves.toEqual({ backgroundColor: "rgb(255, 247, 237)", outlineStyle: "solid" });
+  expect((await page.screenshot({ fullPage: true })).byteLength).toBeGreaterThan(10_000);
+  expect(await page.locator("body").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test("shows enabled technical MVP scenarios and hides disabled fixtures", async ({ page }) => {
   await page.goto("/setup");
 
