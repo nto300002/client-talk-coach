@@ -230,6 +230,19 @@ test("retries failed AI and STT requests, then can safely end the practice", asy
   })).toBe(true);
 });
 
+test("passes confirmed user speech into the local audio analysis", async ({ page }) => {
+  await installBrowserMediaMocks(page);
+  await startPractice(page);
+
+  await page.getByLabel("顧客への発話（テスト入力）").fill("あの、利用人数を教えてください。");
+  await page.getByRole("button", { name: "発話を送る" }).click();
+  await expect(page.getByText("承知しました。続けて教えてください。")).toBeVisible();
+  await page.getByRole("button", { name: "会話を終了する" }).click();
+  await expect(page).toHaveURL(/\/self-review$/);
+
+  await expect.poll(() => readLatestAudioAnalysis(page)).toEqual(expect.objectContaining({ fillerCount: 1 }));
+});
+
 async function installBrowserMediaMocks(page: Page) {
   await page.addInitScript(() => {
     const originalFetch = window.fetch.bind(window);
@@ -314,6 +327,24 @@ async function installBrowserMediaMocks(page: Page) {
 
     Object.defineProperty(window, "MediaRecorder", { configurable: true, value: FakeMediaRecorder });
     HTMLMediaElement.prototype.play = () => Promise.resolve();
+  });
+}
+
+async function readLatestAudioAnalysis(page: Page) {
+  return page.evaluate(async () => {
+    const request = indexedDB.open("client-talk-coach");
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const transaction = database.transaction("analyses", "readonly");
+    const records = await new Promise<Array<{ result?: { fillerCount?: number } }>>((resolve, reject) => {
+      const getAll = transaction.objectStore("analyses").getAll();
+      getAll.onsuccess = () => resolve(getAll.result);
+      getAll.onerror = () => reject(getAll.error);
+    });
+    database.close();
+    return records.at(-1)?.result ?? null;
   });
 }
 
