@@ -1,5 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
+test("shows the home dashboard primary action and local storage summary", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "顧客折衝練習" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "新しい練習を始める" })).toBeVisible();
+  await expect(page.getByText("録画保存数 0 / 20")).toBeVisible();
+  await expect(page.getByText("前回の練習はありません。")).toBeVisible();
+  expect(await page.locator("body").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test("shows enabled technical MVP scenarios and hides disabled fixtures", async ({ page }) => {
   await page.goto("/setup");
 
@@ -100,6 +110,8 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
 
   await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
   await expect(page.getByText("カメラ: 準備完了")).toBeVisible();
+  await expect(page.getByText("保存容量: 録画可能")).toBeVisible();
+  await expect(page.getByText("録画数: 0 / 20")).toBeVisible();
   await expect(page.getByLabel("カメラプレビュー")).toBeVisible();
   await page.getByRole("button", { name: "録画して練習を開始する" }).click();
   await expect(page.getByRole("heading", { name: "AI顧客との練習" })).toBeVisible();

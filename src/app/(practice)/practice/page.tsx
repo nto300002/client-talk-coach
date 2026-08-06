@@ -237,9 +237,11 @@ export default function PracticePage() {
       <section className="panel practice-panel" aria-labelledby="practice-title">
         <p className="eyebrow">ClientTalk Coach</p>
         <h1 id="practice-title">AI顧客との練習</h1>
+        <p>{session.configuration.scenarioId} / Lv.{session.configuration.difficultyLevel}</p>
         <p className="practice-status" aria-live="polite">
           {isPaused ? "一時停止中" : isRecording ? "録画中です" : "会話の準備ができています"}
         </p>
+        <p className="practice-status" aria-live="polite">AI顧客: {isResponding ? "応答しています" : "あなたの発話を待っています"}</p>
         <p>{session.configuration.durationMinutes}分の練習です。詳細な採点は会話中に表示しません。</p>
         {countdown ? (
           <section className="practice-countdown" aria-label="練習時間">
