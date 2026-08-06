@@ -4,9 +4,21 @@ test("shows enabled technical MVP scenarios and hides disabled fixtures", async 
   await page.goto("/setup");
 
   await expect(page.getByRole("heading", { name: "練習を設定する" })).toBeVisible();
-  await expect(page.getByText("初回要件ヒアリング")).toBeVisible();
-  await expect(page.getByText("仕様変更・追加要望")).toBeVisible();
-  await expect(page.getByText("納期遅延の説明")).toBeVisible();
+  for (const scenarioName of [
+    "初回要件ヒアリング",
+    "曖昧な要望の具体化",
+    "提案・見積もり説明",
+    "仕様確認・認識合わせ",
+    "仕様変更・追加要望",
+    "進捗報告",
+    "納期遅延の説明",
+    "障害・不具合対応",
+    "クレーム対応",
+    "納品・検収・保守",
+    "会議運営",
+  ]) {
+    await expect(page.getByText(scenarioName)).toBeVisible();
+  }
   await expect(page.getByText("Disabled Fixture Scenario")).toHaveCount(0);
 });
 

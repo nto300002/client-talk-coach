@@ -5,14 +5,33 @@ import { ScenarioFixtureRepository } from "@/modules/scenario/infrastructure/sce
 import { technicalMvpScenarioFixtures } from "@/scenarios/technical-mvp";
 
 describe("ScenarioFixtureRepository", () => {
-  it("loads all enabled technical MVP scenarios", () => {
+  it("loads all 11 enabled technical MVP business situations", () => {
     const repository = new ScenarioFixtureRepository(technicalMvpScenarioFixtures);
 
     expect(repository.listEnabledScenarios().map((scenario) => scenario.id)).toEqual([
       "initial-requirements-interview",
+      "clarify-vague-request",
+      "proposal-estimate-explanation",
+      "specification-alignment",
+      "progress-reporting",
+      "incident-bug-handling",
+      "complaint-handling",
+      "delivery-acceptance-maintenance",
+      "meeting-facilitation",
       "scope-change-additional-request",
       "schedule-delay-explanation",
     ]);
+  });
+
+  it("gives every enabled situation a selectable scene and all five difficulty levels", () => {
+    const repository = new ScenarioFixtureRepository(technicalMvpScenarioFixtures);
+
+    for (const scenario of repository.listEnabledScenarios()) {
+      expect(scenario.scenes.length).toBeGreaterThan(0);
+      expect(scenario.difficultyProfiles.map((profile) => profile.level)).toEqual([1, 2, 3, 4, 5]);
+      expect(scenario.scenes.some((scene) => scene.allowedDifficultyLevels.length === 5)).toBe(true);
+      expect(scenario.evaluationRubric.requiredFactIds.length).toBeGreaterThan(0);
+    }
   });
 
   it("excludes disabled scenarios from normal selection", () => {
