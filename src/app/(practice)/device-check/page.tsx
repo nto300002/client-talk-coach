@@ -101,7 +101,7 @@ export default function DeviceCheckPage() {
             </div>
             <ul className="device-status-list">
               <li>カメラ: {preview ? "準備完了" : "未確認"}</li>
-              <li>マイク: {preview ? "準備完了" : "未確認"}</li>
+              <li>マイク: {preview ? readiness.status === "warning" ? "入力を確認してください" : "準備完了" : "未確認"}</li>
               <li>録画: {readiness.status === "blocked" ? "利用できません" : "準備完了"}</li>
             </ul>
             {readiness.reasons.includes("microphone_level_low") ? (
