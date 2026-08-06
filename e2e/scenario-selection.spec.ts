@@ -94,6 +94,7 @@ test("warns one minute before time expiry and ends the practice once the selecte
 });
 
 test("runs the practice lifecycle through pause, resume, and post-practice self review", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-08-06T12:00:00.000Z") });
   await installBrowserMediaMocks(page);
   await page.goto("/setup");
 
@@ -150,6 +151,10 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await expect(page.getByRole("button", { name: "60秒の再練習を開始する" })).toBeVisible();
   await page.getByRole("button", { name: "60秒の再練習を開始する" }).click();
   await page.getByLabel("再練習の回答").fill("結論からお伝えします。個人情報の扱いを確認します。");
+  await expect(page.getByRole("status")).toContainText("残り 60秒。時間終了後に保存できます。");
+  await expect(page.getByRole("button", { name: "再練習を保存する" })).toBeDisabled();
+  await page.clock.fastForward(60_000);
+  await expect(page.getByRole("status")).toContainText("再練習が終わりました。回答を保存できます。");
   await page.getByRole("button", { name: "再練習を保存する" }).click();
   await expect(page.getByRole("status")).toContainText("部分再練習を保存しました。元の回答");
 
