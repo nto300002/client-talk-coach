@@ -16,6 +16,7 @@ import {
 } from "@/modules/media/infrastructure/browser-media-facade";
 import type { PracticeSetupConfiguration } from "@/modules/practice-setup/domain/practice-setup";
 import { beginPracticeSession } from "@/modules/practice-session/application/practice-lifecycle";
+import { IndexedDbRecordingRepository, LocalPracticeDatabase } from "@/modules/local-recording/infrastructure/indexeddb-recording-repository";
 
 const initialReadiness: DeviceReadiness = { status: "blocked", reasons: ["camera_denied", "microphone_denied"] };
 
@@ -29,6 +30,8 @@ export default function DeviceCheckPage() {
   const [readiness, setReadiness] = useState<DeviceReadiness>(initialReadiness);
   const [error, setError] = useState<string | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
+  const [storageAvailable, setStorageAvailable] = useState<boolean | null>(null);
+  const [recordingCount, setRecordingCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (preview && videoRef.current) {
@@ -48,17 +51,22 @@ export default function DeviceCheckPage() {
     setIsRequesting(true);
     setError(null);
     try {
+      if (preview) {
+        media.stopPreview(preview);
+      }
       const nextPreview = await media.requestPreview();
-      const storageAvailable = await hasStorageCapacity();
+      const hasCapacity = await hasStorageCapacity();
       const nextReadiness = classifyDeviceReadiness({
         cameraGranted: true,
         microphoneGranted: true,
-        storageAvailable,
+        storageAvailable: hasCapacity,
         recordingSupported: media.supportsRecording(),
         microphoneLevel: nextPreview.microphoneLevel,
       });
       setPreview(nextPreview);
       setReadiness(nextReadiness);
+      setStorageAvailable(hasCapacity);
+      setRecordingCount(await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).countStoredCompletedRecordings());
     } catch {
       setReadiness({ status: "blocked", reasons: ["camera_denied", "microphone_denied"] });
       setError("カメラまたはマイクを利用できません。ブラウザの許可設定を確認してください。");
@@ -101,9 +109,12 @@ export default function DeviceCheckPage() {
             </div>
             <ul className="device-status-list">
               <li>カメラ: {preview ? "準備完了" : "未確認"}</li>
-              <li>マイク: {preview ? "準備完了" : "未確認"}</li>
+              <li>マイク: {preview ? readiness.status === "warning" ? "入力を確認してください" : "準備完了" : "未確認"}</li>
+              <li>保存容量: {storageAvailable === null ? "未確認" : storageAvailable ? "録画可能" : "空き容量が不足しています"}</li>
+              <li>録画数: {recordingCount === null ? "未確認" : `${recordingCount} / 20`}</li>
               <li>録画: {readiness.status === "blocked" ? "利用できません" : "準備完了"}</li>
             </ul>
+            {preview ? <p className="field-hint">普段の声で「本日はお時間をいただき、ありがとうございます」と話して確認してください。</p> : null}
             {readiness.reasons.includes("microphone_level_low") ? (
               <p className="status-warning">マイク入力が小さめです。普段の声で話して確認してください。</p>
             ) : null}
@@ -113,9 +124,14 @@ export default function DeviceCheckPage() {
                 {isRequesting ? "確認しています" : "カメラとマイクを許可する"}
               </button>
             ) : (
-              <button className="primary-action" type="button" onClick={() => void startPractice()} disabled={readiness.status === "blocked"}>
-                録画して練習を開始する
-              </button>
+              <div className="practice-controls">
+                <button className="secondary-action" type="button" onClick={() => void requestDevices()} disabled={isRequesting}>
+                  もう一度確認する
+                </button>
+                <button className="primary-action" type="button" onClick={() => void startPractice()} disabled={readiness.status === "blocked"}>
+                  録画して練習を開始する
+                </button>
+              </div>
             )}
           </>
         ) : (

@@ -16,14 +16,22 @@ const selfAssessmentSchema = z
   .max(10, { error: "0から10の整数で入力してください。" });
 
 export const focusSkillLabels = {
+  "voice-volume": "声量を保つ",
+  "speak-slowly": "ゆっくり話す",
+  "speak-conclusion-first": "結論から話す",
+  "short-answer": "短く回答する",
   "ask-questions": "質問を行う",
+  "organize-topics": "話を整理する",
   "summarize-client-needs": "相手の発言を要約する",
   "confirm-agreement": "認識を確認する",
+  "rephrase-technical-terms": "技術用語を言い換える",
+  "say-check-needed": "確認して回答すると伝える",
   "do-not-answer-immediately": "その場で即答しない",
+  "decline-request": "断り方を練習する",
   "explain-additional-cost": "追加費用を説明する",
-  "set-next-action": "次の行動を決める",
-  "speak-conclusion-first": "結論から話す",
   "apologize-with-action": "謝罪と対応策を分ける",
+  "summarize-meeting": "会議をまとめる",
+  "set-next-action": "次の行動を決める",
   "confirm-client-concern": "相手の懸念を確認する",
 } as const;
 

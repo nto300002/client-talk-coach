@@ -16,7 +16,12 @@ export type AiClientResponse = z.infer<typeof aiClientResponseSchema>;
 
 export type AiClientContext = {
   clientName: string;
-  clientType: { displayName: string; cooperationLevel: number; itKnowledgeLevel: number };
+  clientType: {
+    displayName: string;
+    interactionStyle: string;
+    cooperationLevel: number;
+    itKnowledgeLevel: number;
+  };
   difficulty: { ambiguityLevel: number; pressureLevel: number };
   userText: string;
   recentTurns: AiClientTurn[];
