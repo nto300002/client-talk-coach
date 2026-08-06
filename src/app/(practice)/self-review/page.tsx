@@ -6,13 +6,13 @@ import { useState } from "react";
 import type { PracticeSession } from "@/modules/practice-session/domain/practice-session";
 import { SaveSelfReview } from "@/modules/self-review/application/save-self-review";
 import type { SelfReview } from "@/modules/self-review/domain/self-review";
-import { SessionStorageSelfReviewRepository } from "@/modules/self-review/infrastructure/session-storage-self-review-repository";
+import { IndexedDbSelfReviewRepository } from "@/modules/self-review/infrastructure/indexeddb-self-review-repository";
 import { SelfReviewForm } from "@/modules/self-review/presentation/self-review-form";
 
 export default function SelfReviewPage() {
   const session = getStoredPracticeSession();
   const [review, setReview] = useState<SelfReview | null>(null);
-  const [saveSelfReview] = useState(() => new SaveSelfReview(new SessionStorageSelfReviewRepository()));
+  const [saveSelfReview] = useState(() => new SaveSelfReview(new IndexedDbSelfReviewRepository()));
 
   return (
     <main>
