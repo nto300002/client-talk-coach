@@ -116,7 +116,7 @@ export default function HistoryPage() {
                       録画のみ削除
                     </button>
                   ) : null}
-                  <button className="text-action" type="button" onClick={() => void deleteSession(entry)}>
+                  <button className="destructive-action" type="button" onClick={() => void deleteSession(entry)}>
                     練習履歴を削除
                   </button>
                 </div>
@@ -126,7 +126,7 @@ export default function HistoryPage() {
         ) : null}
         {entries?.length && visibleEntries?.length === 0 ? <p>この条件の練習履歴はありません。</p> : null}
         <div className="practice-controls">
-          <button className="text-action" type="button" onClick={() => void deleteAll()}>
+          <button className="destructive-action" type="button" onClick={() => void deleteAll()}>
             すべての端末内データを削除
           </button>
           <Link className="secondary-link" href="/setup">

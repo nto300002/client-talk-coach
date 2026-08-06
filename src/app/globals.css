@@ -1,10 +1,28 @@
 :root {
-  color: #1f2937;
-  background: #fff7ed;
+  --color-page: #fff7ed;
+  --color-surface: #fffbf5;
+  --color-surface-strong: #fff;
+  --color-border: #fdba74;
+  --color-border-subtle: #fed7aa;
+  --color-primary: #c2410c;
+  --color-primary-dark: #9a3412;
+  --color-warning: #9a3412;
+  --color-destructive: #b91c1c;
+  --color-focus: #ea7a1a;
+  --color-text: #1f2937;
+  --radius-control: 6px;
+  --radius-panel: 8px;
+  color: var(--color-text);
+  background: var(--color-page);
   font-family: Arial, Helvetica, sans-serif;
 }
 
 * { box-sizing: border-box; }
+
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
 
 body { margin: 0; }
 
@@ -18,17 +36,17 @@ main {
 .panel {
   width: min(100%, 640px);
   padding: 32px;
-  border: 1px solid #fdba74;
-  border-radius: 8px;
-  background: #fffbf5;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
 }
 
 .confirmation-dialog {
   margin-top: 24px;
   padding: 20px;
-  border: 1px solid #ea7a1a;
-  border-radius: 8px;
-  background: #fff7ed;
+  border: 1px solid var(--color-focus);
+  border-radius: var(--radius-panel);
+  background: var(--color-page);
 }
 
 .confirmation-dialog h2 {
@@ -45,9 +63,9 @@ main {
 
 .practice-summary div {
   padding: 12px;
-  border: 1px solid #fed7aa;
-  border-radius: 6px;
-  background: #fff;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-strong);
 }
 
 .practice-summary dt {
@@ -323,8 +341,8 @@ main {
   min-height: 44px;
   padding: 10px 16px;
   border: 0;
-  border-radius: 6px;
-  background: #c2410c;
+  border-radius: var(--radius-control);
+  background: var(--color-primary);
   color: #fff;
   font: inherit;
   font-weight: 700;
@@ -339,7 +357,7 @@ main {
 
 .secondary-link {
   margin-top: 16px;
-  background: #9a3412;
+  background: var(--color-primary-dark);
 }
 
 .practice-panel {
@@ -463,13 +481,15 @@ main {
 .evaluation-summary h2 { font-size: 1rem; }
 
 .secondary-action,
-.text-action {
+.text-action,
+.warning-action,
+.destructive-action {
   min-height: 44px;
   padding: 10px 16px;
-  border: 1px solid #c2410c;
-  border-radius: 6px;
-  background: #fff7ed;
-  color: #9a3412;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-control);
+  background: var(--color-page);
+  color: var(--color-primary-dark);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -478,7 +498,18 @@ main {
 .text-action {
   border-color: transparent;
   background: transparent;
-  color: #7c2d12;
+  color: var(--color-primary-dark);
+}
+
+.warning-action {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.destructive-action {
+  border-color: var(--color-destructive);
+  background: #fff5f5;
+  color: var(--color-destructive);
 }
 
 .device-preview {
