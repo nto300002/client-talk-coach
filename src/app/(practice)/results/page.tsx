@@ -4,15 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import type { PracticeSession } from "@/modules/practice-session/domain/practice-session";
-import { createScenarioState } from "@/modules/scenario/domain/scenario-state";
 import { evaluateScenario, type ScenarioEvaluation } from "@/modules/scenario-evaluation/domain/scenario-evaluation";
-import { loadScenarioState } from "@/modules/scenario-evaluation/infrastructure/session-storage-scenario-state";
 import { analyzeConversation } from "@/modules/conversation-analysis/domain/conversation-analysis";
 import { generateConversationFeedback, type ConversationFeedback } from "@/modules/conversation-analysis/domain/conversation-feedback";
-import { loadConversationTurns } from "@/modules/conversation-analysis/infrastructure/session-storage-conversation-turns";
-import { saveConversationFeedback } from "@/modules/conversation-analysis/infrastructure/session-storage-feedback";
 import type { SelfReview } from "@/modules/self-review/domain/self-review";
-import { SessionStorageSelfReviewRepository } from "@/modules/self-review/infrastructure/session-storage-self-review-repository";
+import { IndexedDbRecordingRepository, LocalPracticeDatabase } from "@/modules/local-recording/infrastructure/indexeddb-recording-repository";
 import { technicalMvpScenarioFixtures } from "@/scenarios/technical-mvp";
 
 type ResultData = { review: SelfReview; evaluation: ScenarioEvaluation; feedback: ConversationFeedback };
@@ -23,14 +19,17 @@ export default function ResultsPage() {
   useEffect(() => {
     const session = getStoredSession();
     if (!session) { void Promise.resolve(null).then(setResult); return; }
-    void new SessionStorageSelfReviewRepository().findBySessionId(session.id).then((review) => {
+    const repository = new IndexedDbRecordingRepository(new LocalPracticeDatabase());
+    void Promise.all([repository.findSelfReview(session.id), repository.findConversation(session.id)]).then(async ([review, conversation]) => {
       const definition = technicalMvpScenarioFixtures.find((scenario) => scenario.id === session.configuration.scenarioId);
-      if (!review || !definition) { setResult(null); return; }
-      const state = loadScenarioState(session.id) ?? createScenarioState(definition);
-      const evaluation = evaluateScenario(definition, state);
-      const analysis = analyzeConversation(loadConversationTurns(session.id));
+      if (!review || !definition || !conversation) { setResult(null); return; }
+      const evaluation = evaluateScenario(definition, conversation.scenarioState);
+      const analysis = analyzeConversation(conversation.turns);
       const feedback = generateConversationFeedback(evaluation, analysis, session.configuration.focusSkillId);
-      saveConversationFeedback(session.id, feedback);
+      await Promise.all([
+        repository.saveScenarioEvaluation(session.id, evaluation),
+        repository.saveConversationFeedback(session.id, feedback),
+      ]);
       setResult({ review, evaluation, feedback });
     });
   }, []);

@@ -22,8 +22,6 @@ import { BrowserSpeechSynthesisAdapter } from "@/modules/ai-client/infrastructur
 import type { AiClientTurn } from "@/modules/ai-client/domain/ai-client-contract";
 import { createScenarioState, type ScenarioState } from "@/modules/scenario/domain/scenario-state";
 import { technicalMvpScenarioFixtures } from "@/scenarios/technical-mvp";
-import { saveScenarioState } from "@/modules/scenario-evaluation/infrastructure/session-storage-scenario-state";
-import { saveConversationTurns } from "@/modules/conversation-analysis/infrastructure/session-storage-conversation-turns";
 import { HttpTranscriptionAdapter } from "@/modules/transcription/infrastructure/http-transcription-adapter";
 import { ProcessUserUtterance } from "@/modules/transcription/application/process-user-utterance";
 import { IndexedDbRecordingRepository, LocalPracticeDatabase } from "@/modules/local-recording/infrastructure/indexeddb-recording-repository";
@@ -85,8 +83,7 @@ export default function PracticePage() {
       durationMinutes: currentSession.configuration.durationMinutes,
     });
     if (conversation) {
-      saveScenarioState(currentSession.id, conversation.state);
-      saveConversationTurns(currentSession.id, conversation.turns);
+      await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).saveConversation(currentSession.id, conversation.turns, conversation.state);
     }
     const endedSession = await endPracticeWithoutMedia(currentSession, reason);
     saveSession(endedSession);
@@ -112,8 +109,7 @@ export default function PracticePage() {
         recentTurns: conversation.turns,
       });
       const nextConversation = toRuntime(conversation, userTurn, result);
-      saveScenarioState(currentSession.id, nextConversation.state);
-      saveConversationTurns(currentSession.id, nextConversation.turns);
+      void new IndexedDbRecordingRepository(new LocalPracticeDatabase()).saveConversation(currentSession.id, nextConversation.turns, nextConversation.state);
       setConversation(nextConversation);
       setFailedUserText(null);
     } catch {

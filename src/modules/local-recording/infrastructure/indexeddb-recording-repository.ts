@@ -1,6 +1,11 @@
 import Dexie, { type Table } from "dexie";
 
 import type { AudioAnalysisResult } from "@/modules/audio-analysis/domain/audio-analysis";
+import type { ConversationTurn } from "@/modules/conversation-analysis/domain/conversation-analysis";
+import type { ConversationFeedback } from "@/modules/conversation-analysis/domain/conversation-feedback";
+import type { ScenarioState } from "@/modules/scenario/domain/scenario-state";
+import type { ScenarioEvaluation } from "@/modules/scenario-evaluation/domain/scenario-evaluation";
+import type { SelfReview } from "@/modules/self-review/domain/self-review";
 
 import {
   isStoredCompletedRecording,
@@ -32,11 +37,24 @@ export type StoredAudioAnalysis = {
   result: AudioAnalysisResult;
 };
 
+export type StoredConversation = {
+  sessionId: string;
+  turns: ConversationTurn[];
+  scenarioState: ScenarioState;
+};
+
+export type StoredScenarioEvaluation = { sessionId: string; result: ScenarioEvaluation };
+export type StoredConversationFeedback = { sessionId: string; result: ConversationFeedback };
+
 export class LocalPracticeDatabase extends Dexie {
   practiceSessions!: Table<StoredPracticeSession, string>;
   analyses!: Table<StoredAnalysis, string>;
   recordings!: Table<RecordingMetadata, string>;
   recordingChunks!: Table<RecordingChunk, string>;
+  selfReviews!: Table<SelfReview, string>;
+  conversations!: Table<StoredConversation, string>;
+  scenarioEvaluations!: Table<StoredScenarioEvaluation, string>;
+  conversationFeedbacks!: Table<StoredConversationFeedback, string>;
 
   constructor(name = "client-talk-coach") {
     super(name);
@@ -46,6 +64,17 @@ export class LocalPracticeDatabase extends Dexie {
       analyses: "id, sessionId",
       recordings: "id, sessionId, createdAt, status, deletedAt, isFavorite",
       recordingChunks: "id, recordingId, sequence",
+    });
+
+    this.version(2).stores({
+      practiceSessions: "id, createdAt",
+      analyses: "id, sessionId",
+      recordings: "id, sessionId, createdAt, status, deletedAt, isFavorite",
+      recordingChunks: "id, recordingId, sequence",
+      selfReviews: "sessionId, savedAt",
+      conversations: "sessionId",
+      scenarioEvaluations: "sessionId",
+      conversationFeedbacks: "sessionId",
     });
   }
 }
@@ -237,9 +266,22 @@ export class IndexedDbRecordingRepository {
   }
 
   async deletePracticeSession(sessionId: string): Promise<void> {
-    await this.database.transaction("rw", this.database.practiceSessions, this.database.analyses, this.database.recordings, this.database.recordingChunks, async () => {
+    await this.database.transaction("rw", [
+      this.database.practiceSessions,
+      this.database.analyses,
+      this.database.recordings,
+      this.database.recordingChunks,
+      this.database.selfReviews,
+      this.database.conversations,
+      this.database.scenarioEvaluations,
+      this.database.conversationFeedbacks,
+    ], async () => {
       await this.database.practiceSessions.delete(sessionId);
       await this.database.analyses.where("sessionId").equals(sessionId).delete();
+      await this.database.selfReviews.delete(sessionId);
+      await this.database.conversations.delete(sessionId);
+      await this.database.scenarioEvaluations.delete(sessionId);
+      await this.database.conversationFeedbacks.delete(sessionId);
       const recordings = await this.database.recordings.where("sessionId").equals(sessionId).toArray();
       if (recordings.length) await this.database.recordingChunks.where("recordingId").anyOf(recordings.map((recording) => recording.id)).delete();
       await this.database.recordings.where("sessionId").equals(sessionId).delete();
@@ -253,16 +295,26 @@ export class IndexedDbRecordingRepository {
   async deleteAllData(): Promise<void> {
     await this.database.transaction(
       "rw",
-      this.database.practiceSessions,
-      this.database.analyses,
-      this.database.recordings,
-      this.database.recordingChunks,
+      [
+        this.database.practiceSessions,
+        this.database.analyses,
+        this.database.recordings,
+        this.database.recordingChunks,
+        this.database.selfReviews,
+        this.database.conversations,
+        this.database.scenarioEvaluations,
+        this.database.conversationFeedbacks,
+      ],
       async () => {
         await Promise.all([
           this.database.practiceSessions.clear(),
           this.database.analyses.clear(),
           this.database.recordings.clear(),
           this.database.recordingChunks.clear(),
+          this.database.selfReviews.clear(),
+          this.database.conversations.clear(),
+          this.database.scenarioEvaluations.clear(),
+          this.database.conversationFeedbacks.clear(),
         ]);
       },
     );
@@ -302,4 +354,13 @@ export class IndexedDbRecordingRepository {
   private async listActiveRecordings(): Promise<RecordingMetadata[]> {
     return (await this.database.recordings.toArray()).filter((recording) => recording.deletedAt === null);
   }
+
+  async saveSelfReview(review: SelfReview): Promise<void> { await this.database.selfReviews.put(review); }
+  async findSelfReview(sessionId: string): Promise<SelfReview | null> { return (await this.database.selfReviews.get(sessionId)) ?? null; }
+  async saveConversation(sessionId: string, turns: ConversationTurn[], scenarioState: ScenarioState): Promise<void> { await this.database.conversations.put({ sessionId, turns, scenarioState }); }
+  async findConversation(sessionId: string): Promise<StoredConversation | null> { return (await this.database.conversations.get(sessionId)) ?? null; }
+  async saveScenarioEvaluation(sessionId: string, result: ScenarioEvaluation): Promise<void> { await this.database.scenarioEvaluations.put({ sessionId, result }); }
+  async findScenarioEvaluation(sessionId: string): Promise<ScenarioEvaluation | null> { return (await this.database.scenarioEvaluations.get(sessionId))?.result ?? null; }
+  async saveConversationFeedback(sessionId: string, result: ConversationFeedback): Promise<void> { await this.database.conversationFeedbacks.put({ sessionId, result }); }
+  async findConversationFeedback(sessionId: string): Promise<ConversationFeedback | null> { return (await this.database.conversationFeedbacks.get(sessionId))?.result ?? null; }
 }

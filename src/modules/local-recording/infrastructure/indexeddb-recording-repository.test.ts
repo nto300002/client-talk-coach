@@ -188,6 +188,10 @@ describe("IndexedDbRecordingRepository", () => {
     await repository.savePracticeSession(remaining);
     await repository.saveAnalysis({ id: "analysis-target", sessionId: target.id });
     await repository.saveAnalysis({ id: "analysis-remaining", sessionId: remaining.id });
+    await repository.saveSelfReview({ sessionId: target.id, tensionBefore: 1, confidenceBefore: 1, tensionAfter: 1, confidenceAfter: 1, completedConversation: true, askedNeededQuestions: false, blankedOut: false, canTryAgain: true, reflection: "", savedAt: "now", tensionDifference: 0, confidenceDifference: 0 });
+    await repository.saveConversation(target.id, [], { factStatuses: {}, processedEventIds: [] });
+    await repository.saveScenarioEvaluation(target.id, { capturedFacts: [], missingCriticalFacts: [], missingNormalFacts: [] });
+    await repository.saveConversationFeedback(target.id, { strengths: [], primaryImprovement: { category: "next-practice", description: "next", evidenceId: "session", retryTask: "retry" } });
     await repository.saveCompletedRecording(targetRecording, [chunk(targetRecording.id)]);
     await repository.saveCompletedRecording(remainingRecording, [chunk(remainingRecording.id)]);
 
@@ -197,6 +201,10 @@ describe("IndexedDbRecordingRepository", () => {
     expect(await database.analyses.where("sessionId").equals(target.id).count()).toBe(0);
     expect(await database.recordings.where("sessionId").equals(target.id).count()).toBe(0);
     expect(await database.recordingChunks.where("recordingId").equals(targetRecording.id).count()).toBe(0);
+    expect(await repository.findSelfReview(target.id)).toBeNull();
+    expect(await repository.findConversation(target.id)).toBeNull();
+    expect(await repository.findScenarioEvaluation(target.id)).toBeNull();
+    expect(await repository.findConversationFeedback(target.id)).toBeNull();
     expect(await database.practiceSessions.get(remaining.id)).toEqual(remaining);
     expect(await database.analyses.where("sessionId").equals(remaining.id).count()).toBe(1);
     expect(await database.recordings.where("sessionId").equals(remaining.id).count()).toBe(1);
@@ -209,6 +217,25 @@ describe("IndexedDbRecordingRepository", () => {
     await repository.saveAudioAnalysis(analysis);
 
     await expect(repository.findAudioAnalysis("session-audio")).resolves.toEqual(analysis);
+  });
+
+  it("persists self review and private conversation analysis by session", async () => {
+    const { repository } = createRepository();
+    const sessionId = "session-private-data";
+    const state = { factStatuses: { fact: "disclosed" as const }, processedEventIds: ["event-1"] };
+    const feedback = { strengths: [], primaryImprovement: { category: "next-practice" as const, description: "次の質問を確認します。", evidenceId: "turn-1", retryTask: "一つ質問してください。" } };
+    const evaluation = { capturedFacts: [], missingCriticalFacts: [], missingNormalFacts: [] };
+    const review = { sessionId, tensionBefore: 5, confidenceBefore: 4, tensionAfter: 3, confidenceAfter: 6, completedConversation: true, askedNeededQuestions: true, blankedOut: false, canTryAgain: true, reflection: "", savedAt: "2026-08-06T00:00:00.000Z", tensionDifference: -2, confidenceDifference: 2 };
+
+    await repository.saveSelfReview(review);
+    await repository.saveConversation(sessionId, [{ id: "turn-1", speaker: "user" as const, text: "確認します" }], state);
+    await repository.saveScenarioEvaluation(sessionId, evaluation);
+    await repository.saveConversationFeedback(sessionId, feedback);
+
+    await expect(repository.findSelfReview(sessionId)).resolves.toEqual(review);
+    await expect(repository.findConversation(sessionId)).resolves.toEqual({ sessionId, turns: [{ id: "turn-1", speaker: "user", text: "確認します" }], scenarioState: state });
+    await expect(repository.findScenarioEvaluation(sessionId)).resolves.toEqual(evaluation);
+    await expect(repository.findConversationFeedback(sessionId)).resolves.toEqual(feedback);
   });
 });
 
