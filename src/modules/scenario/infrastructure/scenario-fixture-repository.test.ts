@@ -34,6 +34,31 @@ describe("ScenarioFixtureRepository", () => {
     }
   });
 
+  it("models all documented client types and makes each one selectable in a compatible scene", () => {
+    const repository = new ScenarioFixtureRepository(technicalMvpScenarioFixtures);
+    const scenarios = repository.listEnabledScenarios();
+    const documentedClientTypeIds = [
+      "cooperative-client",
+      "low-it-knowledge-client",
+      "deadline-focused-client",
+      "high-it-knowledge-client",
+      "vague-client",
+      "quiet-client",
+      "long-winded-client",
+      "decision-rushed-client",
+      "budget-focused-client",
+      "frequently-changing-client",
+      "argumentative-client",
+      "emotionally-reactive-client",
+    ];
+
+    expect(scenarios[0].clientTypes.map((clientType) => clientType.id)).toEqual(documentedClientTypeIds);
+    expect(scenarios[0].clientTypes.every((clientType) => clientType.interactionStyle.length > 0)).toBe(true);
+    expect(new Set(scenarios.flatMap((scenario) => scenario.scenes.flatMap((scene) => scene.allowedClientTypeIds)))).toEqual(
+      new Set(documentedClientTypeIds),
+    );
+  });
+
   it("excludes disabled scenarios from normal selection", () => {
     const repository = new ScenarioFixtureRepository(technicalMvpScenarioFixtures);
 

@@ -30,6 +30,18 @@ test("does not show errors for untouched dependent setup fields", async ({ page 
   await expect(page.getByRole("button", { name: "デバイス確認へ進む" })).toBeDisabled();
 });
 
+test("shows only compatible expanded client types and focus skills after selecting a scene", async ({ page }) => {
+  await page.goto("/setup");
+  await page.getByRole("radio", { name: /仕様変更・追加要望/ }).check();
+  await page.getByRole("radio", { name: /開発後半のCSV出力追加/ }).check();
+
+  await expect(page.getByRole("radio", { name: /要望を頻繁に変更する顧客/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /反論が多い顧客/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /IT知識が少ない顧客/ })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "断り方を練習する" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "その場で即答しない" })).toBeVisible();
+});
+
 test("completes practice setup and reaches device check", async ({ page }) => {
   await page.goto("/setup");
 
@@ -50,6 +62,25 @@ test("completes practice setup and reaches device check", async ({ page }) => {
   await expect(page).toHaveURL(/\/device-check$/);
   await expect(page.getByRole("heading", { name: "カメラとマイクを確認する" })).toBeVisible();
   await expect(page.getByText("7分の練習を開始する前に")).toBeVisible();
+});
+
+test("warns one minute before time expiry and ends the practice once the selected duration elapses", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-08-06T12:00:00.000Z") });
+  await installBrowserMediaMocks(page);
+  await startPracticeWithDuration(page, "5分");
+
+  await expect(page.getByTestId("remaining-time")).toHaveText("5:00");
+  await page.clock.fastForward(240_000);
+  await expect(page.getByTestId("remaining-time")).toHaveText("1:00");
+  await expect(page.getByRole("alert")).toHaveText("終了まで残り1分です。会話をまとめてください。");
+
+  await page.clock.fastForward(60_000);
+  await expect(page).toHaveURL(/\/self-review$/);
+  await expect(page.getByText("終了理由: 時間終了")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const session = JSON.parse(window.sessionStorage.getItem("client-talk-coach.practice-session") ?? "{}");
+    return session.endReason;
+  })).toBe("time_expired");
 });
 
 test("runs the practice lifecycle through pause, resume, and post-practice self review", async ({ page }) => {
@@ -318,6 +349,22 @@ async function startPractice(page: Page) {
   await page.getByLabel("練習前の自信度").fill("6");
   await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
   await expect(page).toHaveURL(/\/practice-confirm$/);
+  await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
+  await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
+  await page.getByRole("button", { name: "録画して練習を開始する" }).click();
+}
+
+async function startPracticeWithDuration(page: Page, duration: "5分" | "7分" | "10分") {
+  await page.goto("/setup");
+  await page.getByRole("radio", { name: /初回要件ヒアリング/ }).check();
+  await page.getByRole("radio", { name: /福祉事業所の初回相談/ }).check();
+  await page.getByRole("radio", { name: /初級/ }).check();
+  await page.getByRole("radio", { name: /IT知識が少ない顧客/ }).check();
+  await page.getByRole("radio", { name: "質問を行う" }).check();
+  await page.getByRole("radio", { name: duration }).check();
+  await page.getByLabel("練習前の緊張度").fill("4");
+  await page.getByLabel("練習前の自信度").fill("6");
+  await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
   await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
   await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
   await page.getByRole("button", { name: "録画して練習を開始する" }).click();

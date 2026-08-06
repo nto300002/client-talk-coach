@@ -16,6 +16,7 @@ export const clientTypeSchema = z.object({
   id: idSchema,
   displayName: z.string().min(1),
   description: z.string().min(1),
+  interactionStyle: z.string().min(1),
   cooperationLevel: z.number().int().min(1).max(5),
   itKnowledgeLevel: z.number().int().min(1).max(5),
 });

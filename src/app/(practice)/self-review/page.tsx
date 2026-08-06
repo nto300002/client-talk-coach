@@ -49,5 +49,9 @@ function getStoredPracticeSession(): PracticeSession | null {
   return stored ? (JSON.parse(stored) as PracticeSession) : null;
 }
 
-function formatEndReason(reason: PracticeSession["endReason"]): string { return reason === "emergency_end" ? "安全終了" : "通常終了"; }
+function formatEndReason(reason: PracticeSession["endReason"]): string {
+  if (reason === "emergency_end") return "安全終了";
+  if (reason === "time_expired") return "時間終了";
+  return "通常終了";
+}
 function formatDifference(value: number): string { return value > 0 ? `+${value}` : String(value); }
