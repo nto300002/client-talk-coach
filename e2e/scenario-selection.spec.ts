@@ -94,8 +94,9 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
   await expect(page.getByRole("heading", { name: "録画を振り返る" })).toBeVisible();
   await expect(page.getByRole("button", { name: "60秒の再練習を開始する" })).toBeVisible();
   await page.getByRole("button", { name: "60秒の再練習を開始する" }).click();
-  await page.getByRole("button", { name: "再練習を完了する" }).click();
-  await expect(page.getByRole("status")).toContainText("元の練習に紐付けて保存しました");
+  await page.getByLabel("再練習の回答").fill("結論からお伝えします。個人情報の扱いを確認します。");
+  await page.getByRole("button", { name: "再練習を保存する" }).click();
+  await expect(page.getByRole("status")).toContainText("部分再練習を保存しました。元の回答");
 
   await page.goto("/history");
   await expect(page.getByRole("heading", { name: "練習履歴" })).toBeVisible();

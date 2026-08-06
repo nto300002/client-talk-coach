@@ -6,6 +6,7 @@ import type { ConversationFeedback } from "@/modules/conversation-analysis/domai
 import type { ScenarioState } from "@/modules/scenario/domain/scenario-state";
 import type { ScenarioEvaluation } from "@/modules/scenario-evaluation/domain/scenario-evaluation";
 import type { SelfReview } from "@/modules/self-review/domain/self-review";
+import type { PartialRetryRecord } from "@/modules/video-review/domain/partial-retry";
 
 import {
   isStoredCompletedRecording,
@@ -55,6 +56,7 @@ export class LocalPracticeDatabase extends Dexie {
   conversations!: Table<StoredConversation, string>;
   scenarioEvaluations!: Table<StoredScenarioEvaluation, string>;
   conversationFeedbacks!: Table<StoredConversationFeedback, string>;
+  partialRetries!: Table<PartialRetryRecord, string>;
 
   constructor(name = "client-talk-coach") {
     super(name);
@@ -75,6 +77,18 @@ export class LocalPracticeDatabase extends Dexie {
       conversations: "sessionId",
       scenarioEvaluations: "sessionId",
       conversationFeedbacks: "sessionId",
+    });
+
+    this.version(3).stores({
+      practiceSessions: "id, createdAt",
+      analyses: "id, sessionId",
+      recordings: "id, sessionId, createdAt, status, deletedAt, isFavorite",
+      recordingChunks: "id, recordingId, sequence",
+      selfReviews: "sessionId, savedAt",
+      conversations: "sessionId",
+      scenarioEvaluations: "sessionId",
+      conversationFeedbacks: "sessionId",
+      partialRetries: "id, originalSessionId, createdAt, status",
     });
   }
 }
@@ -275,6 +289,7 @@ export class IndexedDbRecordingRepository {
       this.database.conversations,
       this.database.scenarioEvaluations,
       this.database.conversationFeedbacks,
+      this.database.partialRetries,
     ], async () => {
       await this.database.practiceSessions.delete(sessionId);
       await this.database.analyses.where("sessionId").equals(sessionId).delete();
@@ -282,6 +297,7 @@ export class IndexedDbRecordingRepository {
       await this.database.conversations.delete(sessionId);
       await this.database.scenarioEvaluations.delete(sessionId);
       await this.database.conversationFeedbacks.delete(sessionId);
+      await this.database.partialRetries.where("originalSessionId").equals(sessionId).delete();
       const recordings = await this.database.recordings.where("sessionId").equals(sessionId).toArray();
       if (recordings.length) await this.database.recordingChunks.where("recordingId").anyOf(recordings.map((recording) => recording.id)).delete();
       await this.database.recordings.where("sessionId").equals(sessionId).delete();
@@ -304,6 +320,7 @@ export class IndexedDbRecordingRepository {
         this.database.conversations,
         this.database.scenarioEvaluations,
         this.database.conversationFeedbacks,
+        this.database.partialRetries,
       ],
       async () => {
         await Promise.all([
@@ -315,6 +332,7 @@ export class IndexedDbRecordingRepository {
           this.database.conversations.clear(),
           this.database.scenarioEvaluations.clear(),
           this.database.conversationFeedbacks.clear(),
+          this.database.partialRetries.clear(),
         ]);
       },
     );
@@ -363,4 +381,6 @@ export class IndexedDbRecordingRepository {
   async findScenarioEvaluation(sessionId: string): Promise<ScenarioEvaluation | null> { return (await this.database.scenarioEvaluations.get(sessionId))?.result ?? null; }
   async saveConversationFeedback(sessionId: string, result: ConversationFeedback): Promise<void> { await this.database.conversationFeedbacks.put({ sessionId, result }); }
   async findConversationFeedback(sessionId: string): Promise<ConversationFeedback | null> { return (await this.database.conversationFeedbacks.get(sessionId))?.result ?? null; }
+  async savePartialRetry(retry: PartialRetryRecord): Promise<void> { await this.database.partialRetries.put(retry); }
+  async findPartialRetries(sessionId: string): Promise<PartialRetryRecord[]> { return (await this.database.partialRetries.where("originalSessionId").equals(sessionId).toArray()).sort((left, right) => left.createdAt.localeCompare(right.createdAt)); }
 }

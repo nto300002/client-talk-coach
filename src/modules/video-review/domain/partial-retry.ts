@@ -8,12 +8,14 @@ export type PartialRetryRecord = {
   createdAt: string;
   completedAt: string | null;
   status: PartialRetryStatus;
+  responseText: string;
+  responseCharacterCount: number;
 };
 
-export function startPartialRetry(input: Omit<PartialRetryRecord, "id" | "createdAt" | "completedAt" | "status"> & { id: string; createdAt: string }): PartialRetryRecord {
-  return { ...input, completedAt: null, status: "active" };
+export function startPartialRetry(input: Omit<PartialRetryRecord, "id" | "createdAt" | "completedAt" | "status" | "responseText" | "responseCharacterCount"> & { id: string; createdAt: string }): PartialRetryRecord {
+  return { ...input, completedAt: null, status: "active", responseText: "", responseCharacterCount: 0 };
 }
 
-export function completePartialRetry(retry: PartialRetryRecord, completedAt: string): PartialRetryRecord {
-  return retry.status === "completed" ? retry : { ...retry, status: "completed", completedAt };
+export function completePartialRetry(retry: PartialRetryRecord, completedAt: string, responseText = ""): PartialRetryRecord {
+  return retry.status === "completed" ? retry : { ...retry, status: "completed", completedAt, responseText, responseCharacterCount: responseText.replace(/[\s、。！？]/g, "").length };
 }
