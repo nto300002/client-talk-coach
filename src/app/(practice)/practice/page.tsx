@@ -33,6 +33,8 @@ import {
   resumePracticeCountdown,
   type PracticeCountdown,
 } from "@/modules/practice-session/domain/practice-countdown";
+import { collectPracticeAnalysisInput } from "@/modules/audio-analysis/application/practice-analysis-input";
+import type { TimedInterval } from "@/modules/audio-analysis/domain/audio-analysis";
 
 const sessionStorageKey = "client-talk-coach.practice-session";
 
@@ -61,9 +63,14 @@ export default function PracticePage() {
   const conversationRef = useRef(conversation);
   const endingRef = useRef(false);
   const oneMinuteWarningRef = useRef(false);
+  const analysisUserTurnsRef = useRef<AiClientTurn[]>([]);
+  const aiSpeechIntervalsRef = useRef<TimedInterval[]>([]);
   const endPracticeRef = useRef<(reason: "user_completed" | "time_expired" | "emergency_end") => Promise<void>>(async () => undefined);
   const [responseGenerator] = useState(
-    () => new GenerateClientResponse(new HttpAiClientAdapter(), new BrowserSpeechSynthesisAdapter()),
+    () => new GenerateClientResponse(
+      new HttpAiClientAdapter(),
+      new BrowserSpeechSynthesisAdapter((interval) => aiSpeechIntervalsRef.current.push(interval)),
+    ),
   );
 
   sessionRef.current = session;
@@ -128,7 +135,11 @@ export default function PracticePage() {
     }
 
     try {
-      await finishMediaPractice(currentSession.id);
+      const analysisInput = collectPracticeAnalysisInput({
+        turns: analysisUserTurnsRef.current,
+        aiSpeechIntervals: aiSpeechIntervalsRef.current,
+      });
+      await finishMediaPractice(currentSession.id, analysisInput);
       await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).savePracticeSession({
         id: currentSession.id,
         createdAt: new Date().toISOString(),
@@ -153,12 +164,15 @@ export default function PracticePage() {
 
   endPracticeRef.current = endPractice;
 
-  async function sendUserTurn(transcribedText?: string) {
+  async function sendUserTurn(transcribedText?: string, isRetry = false) {
     const currentSession = session;
     const text = transcribedText ?? draft.trim();
     if (!currentSession || !conversation || !text || isPaused || isResponding || isTranscribing || inputLock.current) return;
     inputLock.current = true;
     const userTurn: AiClientTurn = { id: `turn-${crypto.randomUUID()}`, speaker: "user", text };
+    if (!isRetry) {
+      analysisUserTurnsRef.current.push(userTurn);
+    }
     setDraft("");
     setIsResponding(true);
     setConversationError(null);
@@ -173,6 +187,7 @@ export default function PracticePage() {
       });
       const nextConversation = toRuntime(conversation, userTurn, result);
       void new IndexedDbRecordingRepository(new LocalPracticeDatabase()).saveConversation(currentSession.id, nextConversation.turns, nextConversation.state);
+      conversationRef.current = nextConversation;
       setConversation(nextConversation);
       setFailedUserText(null);
     } catch {
@@ -252,7 +267,7 @@ export default function PracticePage() {
             </div>
             <button className="secondary-action" type="button" onClick={toggleVoiceUtterance} disabled={isPaused || isResponding || isTranscribing}>{utteranceRecorder ? "発話を終了して文字起こしする" : "マイクで発話する"}</button>
             {conversationError ? <p className="status-error">{conversationError}</p> : null}
-            {failedUserText ? <button className="secondary-action" type="button" onClick={() => void sendUserTurn(failedUserText)} disabled={isPaused || isResponding || isTranscribing}>AI応答を再試行</button> : null}
+            {failedUserText ? <button className="secondary-action" type="button" onClick={() => void sendUserTurn(failedUserText, true)} disabled={isPaused || isResponding || isTranscribing}>AI応答を再試行</button> : null}
             {failedUtterance ? <button className="secondary-action" type="button" onClick={() => void transcribeAndSend(failedUtterance.audio, failedUtterance.startedAtMs, failedUtterance.endedAtMs)} disabled={isPaused || isResponding || isTranscribing}>文字起こしを再試行</button> : null}
             <p className="conversation-state">開示済み要件: {getDisclosedLabels(conversation).join("、") || "まだありません"}</p>
           </section>

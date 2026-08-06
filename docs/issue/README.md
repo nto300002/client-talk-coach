@@ -45,3 +45,4 @@ Every issue assumes TDD:
 22. [034 - Client Types And Focus Skills](034-client-types-and-focus-skills.md)
 23. [047 - Practice Countdown And Time Limit](047-practice-countdown-and-time-limit.md)
 24. [038 - Real Microphone Readiness](038-real-microphone-readiness.md)
+25. [050 - Audio Analysis Inputs](050-audio-analysis-inputs.md)
