@@ -59,6 +59,21 @@ describe("audio analysis", () => {
     );
   });
 
+  it("adds a good marker when the full audible segment keeps a steady volume", () => {
+    const result = analyzeAudio({
+      baselineRms: 0.1,
+      frames: [frame(0, 500, 0.1), frame(500, 500, 0.12)],
+      transcript: "確認します。",
+      aiSpeechIntervals: [],
+    });
+
+    expect(result.markers).toContainEqual(expect.objectContaining({
+      category: "steady_volume",
+      timestampMs: 0,
+      tone: "good",
+    }));
+  });
+
   it("calculates partial and full overlaps deterministically", () => {
     expect(
       findOverlaps(

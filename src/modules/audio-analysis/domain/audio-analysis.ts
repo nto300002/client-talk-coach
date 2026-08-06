@@ -1,11 +1,12 @@
 export type AudioFrame = { startMs: number; durationMs: number; rms: number };
 export type TimedInterval = { startMs: number; endMs: number };
-export type AudioMarkerCategory = "low_volume" | "long_silence" | "response_delay" | "filler" | "overlap";
+export type AudioMarkerCategory = "steady_volume" | "low_volume" | "long_silence" | "response_delay" | "filler" | "overlap";
 export type AudioMarker = {
   category: AudioMarkerCategory;
   timestampMs: number;
   endMs?: number;
   detail: string;
+  tone?: "good" | "improvement";
 };
 
 export type AudioAnalysisInput = {
@@ -40,6 +41,7 @@ export function analyzeAudio(input: AudioAnalysisInput): AudioAnalysisResult {
   const frames = [...input.frames].sort((left, right) => left.startMs - right.startMs);
   const speechIntervals = detectSpeechIntervals(frames);
   const markers: AudioMarker[] = [
+    ...detectSteadyVolumeMarker(frames, input.baselineRms),
     ...detectLowVolumeMarkers(frames, input.baselineRms),
     ...detectLongSilenceMarkers(speechIntervals),
   ];
@@ -137,6 +139,21 @@ function detectLowVolumeMarkers(frames: AudioFrame[], baselineRms: number): Audi
       endMs: frame.startMs + frame.durationMs,
       detail: "個人基準より小さい音量です。",
     }));
+}
+
+function detectSteadyVolumeMarker(frames: AudioFrame[], baselineRms: number): AudioMarker[] {
+  const speechFrames = frames.filter((frame) => frame.rms >= voiceActivityThreshold);
+  const threshold = baselineRms * lowVolumeBaselineRatio;
+  if (speechFrames.length === 0 || speechFrames.some((frame) => frame.rms < threshold)) {
+    return [];
+  }
+
+  return [{
+    category: "steady_volume",
+    timestampMs: speechFrames[0].startMs,
+    detail: "個人基準に対して聞き取りやすい音量を保てています。",
+    tone: "good",
+  }];
 }
 
 function detectLongSilenceMarkers(speechIntervals: TimedInterval[]): AudioMarker[] {
