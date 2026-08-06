@@ -212,6 +212,13 @@ export class IndexedDbRecordingRepository {
     return this.database.recordings.get(recordingId);
   }
 
+  async listRecordings(): Promise<RecordingMetadata[]> {
+    return (await this.database.recordings.toArray()).sort((left, right) => {
+      const createdAt = right.createdAt.localeCompare(left.createdAt);
+      return createdAt === 0 ? right.id.localeCompare(left.id) : createdAt;
+    });
+  }
+
   async findLatestRecordingForSession(sessionId: string): Promise<RecordingMetadata | undefined> {
     const recordings = await this.listRecordingsForSession(sessionId);
     return recordings
