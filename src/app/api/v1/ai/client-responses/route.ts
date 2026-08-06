@@ -10,7 +10,12 @@ export async function POST(request: Request) {
     const eligibleFacts = Array.isArray(body?.scenarioContext?.eligibleFacts) ? body.scenarioContext.eligibleFacts : [];
     const context = {
       clientName: String(body?.clientType?.displayName ?? "AI顧客"),
-      clientType: body?.clientType ?? { displayName: "AI顧客", cooperationLevel: 3, itKnowledgeLevel: 2 },
+      clientType: body?.clientType ?? {
+        displayName: "AI顧客",
+        interactionStyle: "落ち着いて必要な情報を伝える。",
+        cooperationLevel: 3,
+        itKnowledgeLevel: 2,
+      },
       difficulty: body?.difficulty ?? { ambiguityLevel: 1, pressureLevel: 0 },
       userText: String(body?.latestUserUtterance?.text ?? ""),
       recentTurns: Array.isArray(body?.recentTurns) ? body.recentTurns.slice(-6) : [],

@@ -30,6 +30,18 @@ test("does not show errors for untouched dependent setup fields", async ({ page 
   await expect(page.getByRole("button", { name: "デバイス確認へ進む" })).toBeDisabled();
 });
 
+test("shows only compatible expanded client types and focus skills after selecting a scene", async ({ page }) => {
+  await page.goto("/setup");
+  await page.getByRole("radio", { name: /仕様変更・追加要望/ }).check();
+  await page.getByRole("radio", { name: /開発後半のCSV出力追加/ }).check();
+
+  await expect(page.getByRole("radio", { name: /要望を頻繁に変更する顧客/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /反論が多い顧客/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /IT知識が少ない顧客/ })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "断り方を練習する" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "その場で即答しない" })).toBeVisible();
+});
+
 test("completes practice setup and reaches device check", async ({ page }) => {
   await page.goto("/setup");
 
