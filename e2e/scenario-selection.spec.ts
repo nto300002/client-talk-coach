@@ -1,5 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
+test("shows the home dashboard primary action and local storage summary", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "顧客折衝練習" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "新しい練習を始める" })).toBeVisible();
+  await expect(page.getByText("録画保存数 0 / 20")).toBeVisible();
+  await expect(page.getByText("前回の練習はありません。")).toBeVisible();
+  expect(await page.locator("body").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test("shows enabled technical MVP scenarios and hides disabled fixtures", async ({ page }) => {
   await page.goto("/setup");
 
@@ -30,6 +40,18 @@ test("does not show errors for untouched dependent setup fields", async ({ page 
   await expect(page.getByRole("button", { name: "デバイス確認へ進む" })).toBeDisabled();
 });
 
+test("shows only compatible expanded client types and focus skills after selecting a scene", async ({ page }) => {
+  await page.goto("/setup");
+  await page.getByRole("radio", { name: /仕様変更・追加要望/ }).check();
+  await page.getByRole("radio", { name: /開発後半のCSV出力追加/ }).check();
+
+  await expect(page.getByRole("radio", { name: /要望を頻繁に変更する顧客/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /反論が多い顧客/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /IT知識が少ない顧客/ })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "断り方を練習する" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "その場で即答しない" })).toBeVisible();
+});
+
 test("completes practice setup and reaches device check", async ({ page }) => {
   await page.goto("/setup");
 
@@ -52,6 +74,25 @@ test("completes practice setup and reaches device check", async ({ page }) => {
   await expect(page.getByText("7分の練習を開始する前に")).toBeVisible();
 });
 
+test("warns one minute before time expiry and ends the practice once the selected duration elapses", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-08-06T12:00:00.000Z") });
+  await installBrowserMediaMocks(page);
+  await startPracticeWithDuration(page, "5分");
+
+  await expect(page.getByTestId("remaining-time")).toHaveText("5:00");
+  await page.clock.fastForward(240_000);
+  await expect(page.getByTestId("remaining-time")).toHaveText("1:00");
+  await expect(page.getByRole("alert")).toHaveText("終了まで残り1分です。会話をまとめてください。");
+
+  await page.clock.fastForward(60_000);
+  await expect(page).toHaveURL(/\/self-review$/);
+  await expect(page.getByText("終了理由: 時間終了")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const session = JSON.parse(window.sessionStorage.getItem("client-talk-coach.practice-session") ?? "{}");
+    return session.endReason;
+  })).toBe("time_expired");
+});
+
 test("runs the practice lifecycle through pause, resume, and post-practice self review", async ({ page }) => {
   await installBrowserMediaMocks(page);
   await page.goto("/setup");
@@ -69,6 +110,8 @@ test("runs the practice lifecycle through pause, resume, and post-practice self 
 
   await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
   await expect(page.getByText("カメラ: 準備完了")).toBeVisible();
+  await expect(page.getByText("保存容量: 録画可能")).toBeVisible();
+  await expect(page.getByText("録画数: 0 / 20")).toBeVisible();
   await expect(page.getByLabel("カメラプレビュー")).toBeVisible();
   await page.getByRole("button", { name: "録画して練習を開始する" }).click();
   await expect(page.getByRole("heading", { name: "AI顧客との練習" })).toBeVisible();
@@ -199,6 +242,19 @@ test("retries failed AI and STT requests, then can safely end the practice", asy
   })).toBe(true);
 });
 
+test("passes confirmed user speech into the local audio analysis", async ({ page }) => {
+  await installBrowserMediaMocks(page);
+  await startPractice(page);
+
+  await page.getByLabel("顧客への発話（テスト入力）").fill("あの、利用人数を教えてください。");
+  await page.getByRole("button", { name: "発話を送る" }).click();
+  await expect(page.getByText("承知しました。続けて教えてください。")).toBeVisible();
+  await page.getByRole("button", { name: "会話を終了する" }).click();
+  await expect(page).toHaveURL(/\/self-review$/);
+
+  await expect.poll(() => readLatestAudioAnalysis(page)).toEqual(expect.objectContaining({ fillerCount: 1 }));
+});
+
 async function installBrowserMediaMocks(page: Page) {
   await page.addInitScript(() => {
     const originalFetch = window.fetch.bind(window);
@@ -286,6 +342,24 @@ async function installBrowserMediaMocks(page: Page) {
   });
 }
 
+async function readLatestAudioAnalysis(page: Page) {
+  return page.evaluate(async () => {
+    const request = indexedDB.open("client-talk-coach");
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const transaction = database.transaction("analyses", "readonly");
+    const records = await new Promise<Array<{ result?: { fillerCount?: number } }>>((resolve, reject) => {
+      const getAll = transaction.objectStore("analyses").getAll();
+      getAll.onsuccess = () => resolve(getAll.result);
+      getAll.onerror = () => reject(getAll.error);
+    });
+    database.close();
+    return records.at(-1)?.result ?? null;
+  });
+}
+
 async function completePractice(page: Page) {
   await page.goto("/setup");
   await page.getByRole("radio", { name: /初回要件ヒアリング/ }).check();
@@ -318,6 +392,22 @@ async function startPractice(page: Page) {
   await page.getByLabel("練習前の自信度").fill("6");
   await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
   await expect(page).toHaveURL(/\/practice-confirm$/);
+  await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
+  await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
+  await page.getByRole("button", { name: "録画して練習を開始する" }).click();
+}
+
+async function startPracticeWithDuration(page: Page, duration: "5分" | "7分" | "10分") {
+  await page.goto("/setup");
+  await page.getByRole("radio", { name: /初回要件ヒアリング/ }).check();
+  await page.getByRole("radio", { name: /福祉事業所の初回相談/ }).check();
+  await page.getByRole("radio", { name: /初級/ }).check();
+  await page.getByRole("radio", { name: /IT知識が少ない顧客/ }).check();
+  await page.getByRole("radio", { name: "質問を行う" }).check();
+  await page.getByRole("radio", { name: duration }).check();
+  await page.getByLabel("練習前の緊張度").fill("4");
+  await page.getByLabel("練習前の自信度").fill("6");
+  await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
   await page.getByRole("button", { name: "デバイス確認へ進む" }).click();
   await page.getByRole("button", { name: "カメラとマイクを許可する" }).click();
   await page.getByRole("button", { name: "録画して練習を開始する" }).click();

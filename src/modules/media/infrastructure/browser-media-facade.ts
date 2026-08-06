@@ -1,4 +1,5 @@
 import { ApplicationError } from "@/domain/errors/application-error";
+import { createBrowserMicrophoneLevelMeter } from "@/modules/media/infrastructure/browser-microphone-level-meter";
 
 export type MediaStreamTrackLike = { stop(): void };
 export type MediaStreamLike = { getTracks(): MediaStreamTrackLike[] };
@@ -18,7 +19,7 @@ export type BrowserMediaDependencies = {
   requestUserMedia(constraints: MediaStreamConstraints): Promise<MediaStreamLike>;
   createRecorder(stream: MediaStreamLike, options: { mimeType: string }): MediaRecorderLike;
   isTypeSupported(mimeType: string): boolean;
-  getMicrophoneLevel(stream: MediaStreamLike): number;
+  getMicrophoneLevel(stream: MediaStreamLike): Promise<number>;
   now?(): string;
 };
 
@@ -46,7 +47,7 @@ export class BrowserMediaFacade {
 
   async requestPreview(): Promise<MediaPreview> {
     const stream = await this.dependencies.requestUserMedia({ video: true, audio: true });
-    return { stream, microphoneLevel: this.dependencies.getMicrophoneLevel(stream) };
+    return { stream, microphoneLevel: await this.dependencies.getMicrophoneLevel(stream) };
   }
 
   stopPreview(preview: MediaPreview): void {
@@ -156,11 +157,12 @@ export function selectRecordingMimeType(isTypeSupported: (mimeType: string) => b
 }
 
 export function createBrowserMediaFacade(): BrowserMediaFacade {
+  const microphoneLevelMeter = createBrowserMicrophoneLevelMeter();
   return new BrowserMediaFacade({
     requestUserMedia: (constraints) => navigator.mediaDevices.getUserMedia(constraints),
     createRecorder: (stream, options) =>
       new MediaRecorder(stream as MediaStream, options) as unknown as MediaRecorderLike,
     isTypeSupported: (mimeType) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mimeType),
-    getMicrophoneLevel: () => 0.04,
+    getMicrophoneLevel: (stream) => microphoneLevelMeter.measure(stream as MediaStream),
   });
 }

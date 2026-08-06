@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -25,12 +25,24 @@ import { technicalMvpScenarioFixtures } from "@/scenarios/technical-mvp";
 import { HttpTranscriptionAdapter } from "@/modules/transcription/infrastructure/http-transcription-adapter";
 import { ProcessUserUtterance } from "@/modules/transcription/application/process-user-utterance";
 import { IndexedDbRecordingRepository, LocalPracticeDatabase } from "@/modules/local-recording/infrastructure/indexeddb-recording-repository";
+import {
+  advancePracticeCountdown,
+  createPracticeCountdown,
+  formatPracticeCountdown,
+  pausePracticeCountdown,
+  resumePracticeCountdown,
+  type PracticeCountdown,
+} from "@/modules/practice-session/domain/practice-countdown";
+import { collectPracticeAnalysisInput } from "@/modules/audio-analysis/application/practice-analysis-input";
+import type { TimedInterval } from "@/modules/audio-analysis/domain/audio-analysis";
 
 const sessionStorageKey = "client-talk-coach.practice-session";
 
 export default function PracticePage() {
   const router = useRouter();
   const [session, setSession] = useState<PracticeSession | null>(getStoredPracticeSession);
+  const sessionId = session?.id;
+  const sessionStatus = session?.status;
   const [draft, setDraft] = useState("");
   const [conversation, setConversation] = useState<ConversationRuntime | null>(() =>
     session ? createConversationRuntime(session) : null,
@@ -40,12 +52,58 @@ export default function PracticePage() {
   const [failedUtterance, setFailedUtterance] = useState<CapturedUtterance | null>(null);
   const [isResponding, setIsResponding] = useState(false);
   const [utteranceRecorder, setUtteranceRecorder] = useState<MediaRecorder | null>(null);
+  const [countdown, setCountdown] = useState<PracticeCountdown | null>(() =>
+    session ? createPracticeCountdown(session.configuration.durationMinutes) : null,
+  );
+  const [oneMinuteWarningVisible, setOneMinuteWarningVisible] = useState(false);
   const utteranceStartedAt = useRef<number | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const inputLock = useRef(false);
+  const sessionRef = useRef(session);
+  const conversationRef = useRef(conversation);
+  const endingRef = useRef(false);
+  const oneMinuteWarningRef = useRef(false);
+  const analysisUserTurnsRef = useRef<AiClientTurn[]>([]);
+  const aiSpeechIntervalsRef = useRef<TimedInterval[]>([]);
+  const endPracticeRef = useRef<(reason: "user_completed" | "time_expired" | "emergency_end") => Promise<void>>(async () => undefined);
   const [responseGenerator] = useState(
-    () => new GenerateClientResponse(new HttpAiClientAdapter(), new BrowserSpeechSynthesisAdapter()),
+    () => new GenerateClientResponse(
+      new HttpAiClientAdapter(),
+      new BrowserSpeechSynthesisAdapter((interval) => aiSpeechIntervalsRef.current.push(interval)),
+    ),
   );
+
+  sessionRef.current = session;
+  conversationRef.current = conversation;
+
+  useEffect(() => {
+    if (!sessionId || sessionStatus !== "active") return;
+
+    let lastTickAt = performance.now();
+    const intervalId = window.setInterval(() => {
+      const now = performance.now();
+      const elapsedMs = Math.max(0, Math.floor(now - lastTickAt));
+      lastTickAt = now;
+
+      setCountdown((current) => {
+        if (!current) return current;
+        const result = advancePracticeCountdown(current, elapsedMs);
+
+        if (result.shouldWarnOneMinute && !oneMinuteWarningRef.current) {
+          oneMinuteWarningRef.current = true;
+          setOneMinuteWarningVisible(true);
+        }
+
+        if (result.shouldExpire && !endingRef.current) {
+          void endPracticeRef.current("time_expired");
+        }
+
+        return result.countdown;
+      });
+    }, 1_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [sessionId, sessionStatus]);
 
   if (!session) {
     return (
@@ -66,36 +124,55 @@ export default function PracticePage() {
     setSession(nextSession);
   }
 
-  async function endPractice(reason: "user_completed" | "emergency_end") {
-    const currentSession = session;
+  async function endPractice(reason: "user_completed" | "time_expired" | "emergency_end") {
+    if (endingRef.current) return;
+    endingRef.current = true;
+
+    const currentSession = sessionRef.current;
     if (!currentSession) {
+      endingRef.current = false;
       return;
     }
 
-    await finishMediaPractice(currentSession.id);
-    await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).savePracticeSession({
-      id: currentSession.id,
-      createdAt: new Date().toISOString(),
-      scenarioId: currentSession.configuration.scenarioId,
-      sceneId: currentSession.configuration.sceneId,
-      difficultyLevel: currentSession.configuration.difficultyLevel,
-      clientTypeId: currentSession.configuration.clientTypeId,
-      durationMinutes: currentSession.configuration.durationMinutes,
-    });
-    if (conversation) {
-      await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).saveConversation(currentSession.id, conversation.turns, conversation.state);
+    try {
+      const analysisInput = collectPracticeAnalysisInput({
+        turns: analysisUserTurnsRef.current,
+        aiSpeechIntervals: aiSpeechIntervalsRef.current,
+      });
+      await finishMediaPractice(currentSession.id, analysisInput);
+      await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).savePracticeSession({
+        id: currentSession.id,
+        createdAt: new Date().toISOString(),
+        scenarioId: currentSession.configuration.scenarioId,
+        sceneId: currentSession.configuration.sceneId,
+        difficultyLevel: currentSession.configuration.difficultyLevel,
+        clientTypeId: currentSession.configuration.clientTypeId,
+        durationMinutes: currentSession.configuration.durationMinutes,
+      });
+      const currentConversation = conversationRef.current;
+      if (currentConversation) {
+        await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).saveConversation(currentSession.id, currentConversation.turns, currentConversation.state);
+      }
+      const endedSession = await endPracticeWithoutMedia(currentSession, reason);
+      saveSession(endedSession);
+      router.push("/self-review");
+    } catch {
+      endingRef.current = false;
+      setConversationError("練習を終了できませんでした。もう一度お試しください。");
     }
-    const endedSession = await endPracticeWithoutMedia(currentSession, reason);
-    saveSession(endedSession);
-    router.push("/self-review");
   }
 
-  async function sendUserTurn(transcribedText?: string) {
+  endPracticeRef.current = endPractice;
+
+  async function sendUserTurn(transcribedText?: string, isRetry = false) {
     const currentSession = session;
     const text = transcribedText ?? draft.trim();
     if (!currentSession || !conversation || !text || isPaused || isResponding || isTranscribing || inputLock.current) return;
     inputLock.current = true;
     const userTurn: AiClientTurn = { id: `turn-${crypto.randomUUID()}`, speaker: "user", text };
+    if (!isRetry) {
+      analysisUserTurnsRef.current.push(userTurn);
+    }
     setDraft("");
     setIsResponding(true);
     setConversationError(null);
@@ -110,6 +187,7 @@ export default function PracticePage() {
       });
       const nextConversation = toRuntime(conversation, userTurn, result);
       void new IndexedDbRecordingRepository(new LocalPracticeDatabase()).saveConversation(currentSession.id, nextConversation.turns, nextConversation.state);
+      conversationRef.current = nextConversation;
       setConversation(nextConversation);
       setFailedUserText(null);
     } catch {
@@ -159,10 +237,19 @@ export default function PracticePage() {
       <section className="panel practice-panel" aria-labelledby="practice-title">
         <p className="eyebrow">ClientTalk Coach</p>
         <h1 id="practice-title">AI顧客との練習</h1>
+        <p>{session.configuration.scenarioId} / Lv.{session.configuration.difficultyLevel}</p>
         <p className="practice-status" aria-live="polite">
           {isPaused ? "一時停止中" : isRecording ? "録画中です" : "会話の準備ができています"}
         </p>
+        <p className="practice-status" aria-live="polite">AI顧客: {isResponding ? "応答しています" : "あなたの発話を待っています"}</p>
         <p>{session.configuration.durationMinutes}分の練習です。詳細な採点は会話中に表示しません。</p>
+        {countdown ? (
+          <section className="practice-countdown" aria-label="練習時間">
+            <p>残り時間: <output data-testid="remaining-time">{formatPracticeCountdown(countdown.remainingMs)}</output></p>
+            <p>経過時間: <output data-testid="elapsed-time">{formatPracticeCountdown(countdown.elapsedMs)}</output></p>
+            {oneMinuteWarningVisible ? <p className="status-warning" role="alert">終了まで残り1分です。会話をまとめてください。</p> : null}
+          </section>
+        ) : null}
         {conversation ? (
           <section className="conversation-panel" aria-labelledby="conversation-title">
             <h2 id="conversation-title">顧客との会話</h2>
@@ -182,7 +269,7 @@ export default function PracticePage() {
             </div>
             <button className="secondary-action" type="button" onClick={toggleVoiceUtterance} disabled={isPaused || isResponding || isTranscribing}>{utteranceRecorder ? "発話を終了して文字起こしする" : "マイクで発話する"}</button>
             {conversationError ? <p className="status-error">{conversationError}</p> : null}
-            {failedUserText ? <button className="secondary-action" type="button" onClick={() => void sendUserTurn(failedUserText)} disabled={isPaused || isResponding || isTranscribing}>AI応答を再試行</button> : null}
+            {failedUserText ? <button className="secondary-action" type="button" onClick={() => void sendUserTurn(failedUserText, true)} disabled={isPaused || isResponding || isTranscribing}>AI応答を再試行</button> : null}
             {failedUtterance ? <button className="secondary-action" type="button" onClick={() => void transcribeAndSend(failedUtterance.audio, failedUtterance.startedAtMs, failedUtterance.endedAtMs)} disabled={isPaused || isResponding || isTranscribing}>文字起こしを再試行</button> : null}
             <p className="conversation-state">開示済み要件: {getDisclosedLabels(conversation).join("、") || "まだありません"}</p>
           </section>
@@ -191,6 +278,7 @@ export default function PracticePage() {
           {isPaused ? (
             <button className="primary-action" type="button" onClick={() => {
               void resumeMediaPractice(session.id);
+              setCountdown((current) => current ? resumePracticeCountdown(current) : current);
               saveSession(resumePracticeSession(session));
             }}>
               再開する
@@ -198,6 +286,7 @@ export default function PracticePage() {
           ) : (
             <button className="secondary-action" type="button" onClick={() => {
               void pauseMediaPractice(session.id);
+              setCountdown((current) => current ? pausePracticeCountdown(current) : current);
               saveSession(pausePracticeSession(session));
             }}>
               一時停止する

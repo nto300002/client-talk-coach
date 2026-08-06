@@ -42,3 +42,7 @@ Every issue assumes TDD:
 19. [019 - Screen Detail Behavior Implementation](019-screen-detail-behavior.md)
 20. [020 - Light Orange Visual Design System](020-light-orange-visual-design.md)
 21. [033 - Complete All 11 Personal MVP Business Scenarios](033-complete-all-11-personal-mvp-business-scenarios.md)
+22. [034 - Client Types And Focus Skills](034-client-types-and-focus-skills.md)
+23. [047 - Practice Countdown And Time Limit](047-practice-countdown-and-time-limit.md)
+24. [038 - Real Microphone Readiness](038-real-microphone-readiness.md)
+25. [050 - Audio Analysis Inputs](050-audio-analysis-inputs.md)

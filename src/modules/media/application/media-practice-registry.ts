@@ -12,6 +12,7 @@ import {
 import { analyzePracticeAudio } from "@/modules/audio-analysis/application/analyze-practice-audio";
 import type { AudioFrame } from "@/modules/audio-analysis/domain/audio-analysis";
 import { createBrowserAudioMonitor } from "@/modules/audio-analysis/infrastructure/browser-audio-monitor";
+import type { TimedInterval } from "@/modules/audio-analysis/domain/audio-analysis";
 
 type ActiveMediaPractice = {
   preview: MediaPreview;
@@ -103,7 +104,10 @@ export async function resumeMediaPractice(sessionId: string): Promise<void> {
   activePractices.get(sessionId)?.recording.resume();
 }
 
-export async function finishMediaPractice(sessionId: string): Promise<"completed" | "recoverable" | "missing"> {
+export async function finishMediaPractice(
+  sessionId: string,
+  analysisInput: { transcript: string; aiSpeechIntervals: TimedInterval[] } = { transcript: "", aiSpeechIntervals: [] },
+): Promise<"completed" | "recoverable" | "missing"> {
   const activePractice = activePractices.get(sessionId);
   if (!activePractice) {
     return "missing";
@@ -123,8 +127,8 @@ export async function finishMediaPractice(sessionId: string): Promise<"completed
       sessionId,
       baselineRms: activePractice.baselineRms,
       frames: activePractice.audioFrames,
-      transcript: "",
-      aiSpeechIntervals: [],
+      transcript: analysisInput.transcript,
+      aiSpeechIntervals: analysisInput.aiSpeechIntervals,
     },
     localRepository,
   );

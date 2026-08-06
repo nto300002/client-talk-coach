@@ -4,6 +4,7 @@ import {
   createPracticeSetup,
   getAutoFocusSkill,
   getCompatibleSetupOptions,
+  focusSkillLabels,
   validatePracticeSetup,
 } from "@/modules/practice-setup/domain/practice-setup";
 import { technicalMvpScenarioFixtures } from "@/scenarios/technical-mvp";
@@ -23,6 +24,44 @@ const completeInput = {
 };
 
 describe("practice setup", () => {
+  it("models the documented focus-skill catalog", () => {
+    expect(Object.keys(focusSkillLabels)).toEqual([
+      "voice-volume",
+      "speak-slowly",
+      "speak-conclusion-first",
+      "short-answer",
+      "ask-questions",
+      "organize-topics",
+      "summarize-client-needs",
+      "confirm-agreement",
+      "rephrase-technical-terms",
+      "say-check-needed",
+      "do-not-answer-immediately",
+      "decline-request",
+      "explain-additional-cost",
+      "apologize-with-action",
+      "summarize-meeting",
+      "set-next-action",
+      "confirm-client-concern",
+    ]);
+  });
+
+  it("assigns every documented focus skill to at least one enabled scenario", () => {
+    const documentedFocusSkills = Object.keys(focusSkillLabels).filter((id) => id !== "confirm-client-concern");
+    const configuredFocusSkills = new Set(
+      technicalMvpScenarioFixtures
+        .filter((fixture) => fixture.status === "enabled")
+        .flatMap((fixture) => fixture.evaluationRubric.focusSkillIds),
+    );
+
+    expect(documentedFocusSkills.every((skillId) => configuredFocusSkills.has(skillId))).toBe(true);
+  });
+
+  it("selects a scenario-supported focus skill when the app chooses automatically", () => {
+    for (const fixture of technicalMvpScenarioFixtures.filter((candidate) => candidate.status === "enabled")) {
+      expect(fixture.evaluationRubric.focusSkillIds).toContain(getAutoFocusSkill(fixture, []));
+    }
+  });
   it("creates a typed setup configuration for a complete compatible selection", () => {
     const result = createPracticeSetup(completeInput, scenario);
 
@@ -97,6 +136,9 @@ describe("practice setup", () => {
     expect(options.clientTypes.map((clientType) => clientType.id)).toEqual([
       "cooperative-client",
       "low-it-knowledge-client",
+      "vague-client",
+      "quiet-client",
+      "long-winded-client",
     ]);
   });
 });
