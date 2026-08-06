@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -25,12 +25,22 @@ import { technicalMvpScenarioFixtures } from "@/scenarios/technical-mvp";
 import { HttpTranscriptionAdapter } from "@/modules/transcription/infrastructure/http-transcription-adapter";
 import { ProcessUserUtterance } from "@/modules/transcription/application/process-user-utterance";
 import { IndexedDbRecordingRepository, LocalPracticeDatabase } from "@/modules/local-recording/infrastructure/indexeddb-recording-repository";
+import {
+  advancePracticeCountdown,
+  createPracticeCountdown,
+  formatPracticeCountdown,
+  pausePracticeCountdown,
+  resumePracticeCountdown,
+  type PracticeCountdown,
+} from "@/modules/practice-session/domain/practice-countdown";
 
 const sessionStorageKey = "client-talk-coach.practice-session";
 
 export default function PracticePage() {
   const router = useRouter();
   const [session, setSession] = useState<PracticeSession | null>(getStoredPracticeSession);
+  const sessionId = session?.id;
+  const sessionStatus = session?.status;
   const [draft, setDraft] = useState("");
   const [conversation, setConversation] = useState<ConversationRuntime | null>(() =>
     session ? createConversationRuntime(session) : null,
@@ -40,12 +50,53 @@ export default function PracticePage() {
   const [failedUtterance, setFailedUtterance] = useState<CapturedUtterance | null>(null);
   const [isResponding, setIsResponding] = useState(false);
   const [utteranceRecorder, setUtteranceRecorder] = useState<MediaRecorder | null>(null);
+  const [countdown, setCountdown] = useState<PracticeCountdown | null>(() =>
+    session ? createPracticeCountdown(session.configuration.durationMinutes) : null,
+  );
+  const [oneMinuteWarningVisible, setOneMinuteWarningVisible] = useState(false);
   const utteranceStartedAt = useRef<number | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const inputLock = useRef(false);
+  const sessionRef = useRef(session);
+  const conversationRef = useRef(conversation);
+  const endingRef = useRef(false);
+  const oneMinuteWarningRef = useRef(false);
+  const endPracticeRef = useRef<(reason: "user_completed" | "time_expired" | "emergency_end") => Promise<void>>(async () => undefined);
   const [responseGenerator] = useState(
     () => new GenerateClientResponse(new HttpAiClientAdapter(), new BrowserSpeechSynthesisAdapter()),
   );
+
+  sessionRef.current = session;
+  conversationRef.current = conversation;
+
+  useEffect(() => {
+    if (!sessionId || sessionStatus !== "active") return;
+
+    let lastTickAt = performance.now();
+    const intervalId = window.setInterval(() => {
+      const now = performance.now();
+      const elapsedMs = Math.max(0, Math.floor(now - lastTickAt));
+      lastTickAt = now;
+
+      setCountdown((current) => {
+        if (!current) return current;
+        const result = advancePracticeCountdown(current, elapsedMs);
+
+        if (result.shouldWarnOneMinute && !oneMinuteWarningRef.current) {
+          oneMinuteWarningRef.current = true;
+          setOneMinuteWarningVisible(true);
+        }
+
+        if (result.shouldExpire && !endingRef.current) {
+          void endPracticeRef.current("time_expired");
+        }
+
+        return result.countdown;
+      });
+    }, 1_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [sessionId, sessionStatus]);
 
   if (!session) {
     return (
@@ -66,29 +117,41 @@ export default function PracticePage() {
     setSession(nextSession);
   }
 
-  async function endPractice(reason: "user_completed" | "emergency_end") {
-    const currentSession = session;
+  async function endPractice(reason: "user_completed" | "time_expired" | "emergency_end") {
+    if (endingRef.current) return;
+    endingRef.current = true;
+
+    const currentSession = sessionRef.current;
     if (!currentSession) {
+      endingRef.current = false;
       return;
     }
 
-    await finishMediaPractice(currentSession.id);
-    await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).savePracticeSession({
-      id: currentSession.id,
-      createdAt: new Date().toISOString(),
-      scenarioId: currentSession.configuration.scenarioId,
-      sceneId: currentSession.configuration.sceneId,
-      difficultyLevel: currentSession.configuration.difficultyLevel,
-      clientTypeId: currentSession.configuration.clientTypeId,
-      durationMinutes: currentSession.configuration.durationMinutes,
-    });
-    if (conversation) {
-      await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).saveConversation(currentSession.id, conversation.turns, conversation.state);
+    try {
+      await finishMediaPractice(currentSession.id);
+      await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).savePracticeSession({
+        id: currentSession.id,
+        createdAt: new Date().toISOString(),
+        scenarioId: currentSession.configuration.scenarioId,
+        sceneId: currentSession.configuration.sceneId,
+        difficultyLevel: currentSession.configuration.difficultyLevel,
+        clientTypeId: currentSession.configuration.clientTypeId,
+        durationMinutes: currentSession.configuration.durationMinutes,
+      });
+      const currentConversation = conversationRef.current;
+      if (currentConversation) {
+        await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).saveConversation(currentSession.id, currentConversation.turns, currentConversation.state);
+      }
+      const endedSession = await endPracticeWithoutMedia(currentSession, reason);
+      saveSession(endedSession);
+      router.push("/self-review");
+    } catch {
+      endingRef.current = false;
+      setConversationError("練習を終了できませんでした。もう一度お試しください。");
     }
-    const endedSession = await endPracticeWithoutMedia(currentSession, reason);
-    saveSession(endedSession);
-    router.push("/self-review");
   }
+
+  endPracticeRef.current = endPractice;
 
   async function sendUserTurn(transcribedText?: string) {
     const currentSession = session;
@@ -163,6 +226,13 @@ export default function PracticePage() {
           {isPaused ? "一時停止中" : isRecording ? "録画中です" : "会話の準備ができています"}
         </p>
         <p>{session.configuration.durationMinutes}分の練習です。詳細な採点は会話中に表示しません。</p>
+        {countdown ? (
+          <section className="practice-countdown" aria-label="練習時間">
+            <p>残り時間: <output data-testid="remaining-time">{formatPracticeCountdown(countdown.remainingMs)}</output></p>
+            <p>経過時間: <output data-testid="elapsed-time">{formatPracticeCountdown(countdown.elapsedMs)}</output></p>
+            {oneMinuteWarningVisible ? <p className="status-warning" role="alert">終了まで残り1分です。会話をまとめてください。</p> : null}
+          </section>
+        ) : null}
         {conversation ? (
           <section className="conversation-panel" aria-labelledby="conversation-title">
             <h2 id="conversation-title">顧客との会話</h2>
@@ -191,6 +261,7 @@ export default function PracticePage() {
           {isPaused ? (
             <button className="primary-action" type="button" onClick={() => {
               void resumeMediaPractice(session.id);
+              setCountdown((current) => current ? resumePracticeCountdown(current) : current);
               saveSession(resumePracticeSession(session));
             }}>
               再開する
@@ -198,6 +269,7 @@ export default function PracticePage() {
           ) : (
             <button className="secondary-action" type="button" onClick={() => {
               void pauseMediaPractice(session.id);
+              setCountdown((current) => current ? pausePracticeCountdown(current) : current);
               saveSession(pausePracticeSession(session));
             }}>
               一時停止する
