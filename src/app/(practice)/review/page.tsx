@@ -89,7 +89,7 @@ async function loadReviewData(sessionId: string) {
   const blob = recording ? await repository.loadRecordingBlob(recording.id) : null;
   return {
     blob,
-    reviewMarkers: sortReviewMarkers((audio?.result.markers ?? []).map((marker) => ({ ...marker, tone: "improvement" }))),
+    reviewMarkers: sortReviewMarkers((audio?.result.markers ?? []).map((marker) => ({ ...marker, tone: marker.tone ?? "improvement" }))),
     partialRetries,
     storedFeedback,
     originalResponseCharacterCount: [...(conversation?.turns ?? [])].reverse().find((turn) => turn.speaker === "user")?.text.replace(/[\s、。！？]/g, "").length ?? 0,
