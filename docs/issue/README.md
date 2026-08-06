@@ -44,3 +44,4 @@ Every issue assumes TDD:
 21. [033 - Complete All 11 Personal MVP Business Scenarios](033-complete-all-11-personal-mvp-business-scenarios.md)
 22. [034 - Client Types And Focus Skills](034-client-types-and-focus-skills.md)
 23. [047 - Practice Countdown And Time Limit](047-practice-countdown-and-time-limit.md)
+24. [038 - Real Microphone Readiness](038-real-microphone-readiness.md)

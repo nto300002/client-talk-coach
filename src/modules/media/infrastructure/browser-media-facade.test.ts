@@ -15,13 +15,14 @@ describe("BrowserMediaFacade", () => {
       requestUserMedia,
       createRecorder: () => new FakeRecorder(),
       isTypeSupported: () => true,
-      getMicrophoneLevel: () => 0.04,
+      getMicrophoneLevel: async () => 0.04,
     });
 
     const session = await facade.requestPreview();
     facade.stopPreview(session);
 
     expect(requestUserMedia).toHaveBeenCalledWith({ video: true, audio: true });
+    expect(session.microphoneLevel).toBe(0.04);
     expect(track.stop).toHaveBeenCalledOnce();
   });
 
@@ -31,7 +32,7 @@ describe("BrowserMediaFacade", () => {
       requestUserMedia: async () => ({ getTracks: () => [] }),
       createRecorder: () => recorder,
       isTypeSupported: () => true,
-      getMicrophoneLevel: () => 0.04,
+      getMicrophoneLevel: async () => 0.04,
     });
     const preview = await facade.requestPreview();
     const recording = facade.startRecording({ recordingId: "recording-1", stream: preview.stream });
@@ -50,7 +51,7 @@ describe("BrowserMediaFacade", () => {
       requestUserMedia: async () => ({ getTracks: () => [] }),
       createRecorder: () => new FakeRecorder(),
       isTypeSupported: () => true,
-      getMicrophoneLevel: () => 0.04,
+      getMicrophoneLevel: async () => 0.04,
     });
     const preview = await facade.requestPreview();
     facade.startRecording({ recordingId: "recording-1", stream: preview.stream });
@@ -66,7 +67,7 @@ describe("BrowserMediaFacade", () => {
       requestUserMedia: async () => ({ getTracks: () => [] }),
       createRecorder: () => recorder,
       isTypeSupported: () => true,
-      getMicrophoneLevel: () => 0.04,
+      getMicrophoneLevel: async () => 0.04,
     });
     const preview = await facade.requestPreview();
     const recording = facade.startRecording({ recordingId: "recording-1", stream: preview.stream });
