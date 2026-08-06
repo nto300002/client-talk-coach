@@ -23,6 +23,43 @@ main {
   background: #fffbf5;
 }
 
+.confirmation-dialog {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid #ea7a1a;
+  border-radius: 8px;
+  background: #fff7ed;
+}
+
+.confirmation-dialog h2 {
+  margin-top: 0;
+  font-size: 1.125rem;
+}
+
+.practice-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.practice-summary div {
+  padding: 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.practice-summary dt {
+  color: #9a3412;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.practice-summary dd {
+  margin: 4px 0 0;
+}
+
 .status {
   margin-top: 20px;
   padding: 16px;
@@ -242,6 +279,12 @@ main {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .practice-summary {
+    grid-template-columns: 1fr;
+  }
 }
 
 .number-field label {

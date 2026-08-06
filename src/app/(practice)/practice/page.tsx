@@ -56,6 +56,7 @@ export default function PracticePage() {
     session ? createPracticeCountdown(session.configuration.durationMinutes) : null,
   );
   const [oneMinuteWarningVisible, setOneMinuteWarningVisible] = useState(false);
+  const [pendingEndReason, setPendingEndReason] = useState<"user_completed" | "emergency_end" | null>(null);
   const utteranceStartedAt = useRef<number | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const inputLock = useRef(false);
@@ -292,13 +293,29 @@ export default function PracticePage() {
               一時停止する
             </button>
           )}
-          <button className="primary-action" type="button" onClick={() => void endPractice("user_completed")}>
+          <button className="primary-action" type="button" onClick={() => setPendingEndReason("user_completed")}>
             会話を終了する
           </button>
-          <button className="text-action" type="button" onClick={() => void endPractice("emergency_end")}>
+          <button className="text-action" type="button" onClick={() => setPendingEndReason("emergency_end")}>
             安全に終了する
           </button>
         </div>
+        {pendingEndReason ? (
+          <section className="confirmation-dialog" role="dialog" aria-modal="true" aria-labelledby="end-confirmation-title">
+            <h2 id="end-confirmation-title">{pendingEndReason === "emergency_end" ? "安全に練習を終了しますか" : "会話を終了しますか"}</h2>
+            <p>{pendingEndReason === "emergency_end" ? "ここまでの録画と会話内容を保持して、後から続きとして扱えるようにします。" : "ここまでの録画と会話内容を保存して、自己評価へ進みます。"}</p>
+            <div className="practice-controls">
+              <button className="secondary-action" type="button" onClick={() => setPendingEndReason(null)}>会話へ戻る</button>
+              <button className={pendingEndReason === "emergency_end" ? "text-action" : "primary-action"} type="button" onClick={() => {
+                const reason = pendingEndReason;
+                setPendingEndReason(null);
+                void endPractice(reason);
+              }}>
+                {pendingEndReason === "emergency_end" ? "安全に終了する" : "終了して自己評価へ進む"}
+              </button>
+            </div>
+          </section>
+        ) : null}
       </section>
     </main>
   );

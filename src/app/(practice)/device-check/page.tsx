@@ -118,7 +118,7 @@ export default function DeviceCheckPage() {
             {readiness.reasons.includes("microphone_level_low") ? (
               <p className="status-warning">マイク入力が小さめです。普段の声で話して確認してください。</p>
             ) : null}
-            {error ? <p className="status-error">{error}</p> : null}
+            {error ? <div className="status-error" role="alert"><p>{error}</p>{error.includes("お気に入り") ? <Link className="secondary-link" href="/recordings">録画管理を開く</Link> : null}</div> : null}
             {!preview ? (
               <button className="primary-action" type="button" onClick={() => void requestDevices()} disabled={isRequesting}>
                 {isRequesting ? "確認しています" : "カメラとマイクを許可する"}
