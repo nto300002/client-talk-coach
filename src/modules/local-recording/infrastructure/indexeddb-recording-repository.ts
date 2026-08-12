@@ -4,6 +4,7 @@ import type { AudioAnalysisResult } from "@/modules/audio-analysis/domain/audio-
 import type { ConversationTurn } from "@/modules/conversation-analysis/domain/conversation-analysis";
 import type { ConversationFeedback } from "@/modules/conversation-analysis/domain/conversation-feedback";
 import type { ScenarioState } from "@/modules/scenario/domain/scenario-state";
+import type { ScenarioDefinition } from "@/modules/scenario/domain/scenario-definition";
 import type { ScenarioEvaluation } from "@/modules/scenario-evaluation/domain/scenario-evaluation";
 import type { SelfReview } from "@/modules/self-review/domain/self-review";
 import type { PartialRetryRecord } from "@/modules/video-review/domain/partial-retry";
@@ -21,7 +22,11 @@ export type StoredPracticeSession = {
   id: string;
   createdAt: string;
   scenarioId: string;
+  scenarioVersion?: number;
   sceneId: string;
+  sceneVersion?: number;
+  /** Immutable definition used by this practice session, for historical re-evaluation. */
+  scenarioSnapshot?: ScenarioDefinition;
   difficultyLevel: number;
   clientTypeId: string;
   durationMinutes: number;
@@ -278,6 +283,10 @@ export class IndexedDbRecordingRepository {
 
   async listPracticeSessions(): Promise<StoredPracticeSession[]> {
     return (await this.database.practiceSessions.toArray()).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }
+
+  async findPracticeSession(sessionId: string): Promise<StoredPracticeSession | undefined> {
+    return this.database.practiceSessions.get(sessionId);
   }
 
   async findPreviousMatchingSession(session: StoredPracticeSession): Promise<StoredPracticeSession | undefined> {

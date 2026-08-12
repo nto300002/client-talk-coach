@@ -240,6 +240,25 @@ test("discloses an eligible client fact only after the matching question", async
   await expect(page.getByText("開示済み要件: 現行Excel管理、個人情報")).toBeVisible();
 });
 
+test("persists a disclosed fact with its user-turn evidence for deterministic evaluation", async ({ page }) => {
+  await installBrowserMediaMocks(page);
+  await startPractice(page);
+
+  await page.getByLabel("顧客への発話（テスト入力）").fill("個人情報を扱いますか？");
+  await page.getByRole("button", { name: "発話を送る" }).click();
+  await expect(page.getByText("開示済み要件: 現行Excel管理、個人情報")).toBeVisible();
+  await page.getByRole("button", { name: "会話を終了する" }).click();
+  await page.getByRole("button", { name: "終了して自己評価へ進む" }).click();
+  await page.getByLabel("練習後の緊張度").fill("3");
+  await page.getByLabel("練習後の自信度").fill("7");
+  await page.getByRole("button", { name: "自己評価を保存する" }).click();
+  await page.getByRole("link", { name: "分析を確認する" }).click();
+
+  await expect(page.getByRole("heading", { name: "取得できた事項" })).toBeVisible();
+  await expect(page.getByText(/^個人情報/)).toBeVisible();
+  await expect(page.getByText(/根拠発話: turn-/)).toBeVisible();
+});
+
 test("retries failed AI and STT requests, then can safely end the practice", async ({ page }) => {
   await installBrowserMediaMocks(page);
   await startPractice(page);

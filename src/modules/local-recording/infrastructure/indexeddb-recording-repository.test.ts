@@ -8,6 +8,7 @@ import {
 } from "@/modules/local-recording/infrastructure/indexeddb-recording-repository";
 import type { RecordingMetadata } from "@/modules/local-recording/domain/recording-limit";
 import type { AudioAnalysisResult } from "@/modules/audio-analysis/domain/audio-analysis";
+import { technicalMvpScenarioFixtures } from "@/scenarios/technical-mvp";
 
 const databases: LocalPracticeDatabase[] = [];
 
@@ -236,6 +237,21 @@ describe("IndexedDbRecordingRepository", () => {
     await expect(repository.findConversation(sessionId)).resolves.toEqual({ sessionId, turns: [{ id: "turn-1", speaker: "user", text: "確認します" }], scenarioState: state });
     await expect(repository.findScenarioEvaluation(sessionId)).resolves.toEqual(evaluation);
     await expect(repository.findConversationFeedback(sessionId)).resolves.toEqual(feedback);
+  });
+
+  it("persists the scenario version and immutable definition snapshot with a practice session", async () => {
+    const { repository } = createRepository();
+    const definition = technicalMvpScenarioFixtures[0];
+    const session = {
+      ...practiceSession("session-versioned", "2026-08-12T00:00:00.000Z"),
+      scenarioVersion: definition.version,
+      sceneVersion: definition.scenes[0].version,
+      scenarioSnapshot: definition,
+    };
+
+    await repository.savePracticeSession(session);
+
+    await expect(repository.findPracticeSession(session.id)).resolves.toEqual(session);
   });
 });
 
