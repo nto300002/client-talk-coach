@@ -22,4 +22,22 @@ describe("scenario state", () => {
     const next = transitionScenarioState(scenario, initial, event);
     expect(transitionScenarioState(scenario, next, event)).toBe(next);
   });
+
+  it("keeps the user-turn evidence for a disclosed fact", () => {
+    let state = createScenarioState(scenario);
+    state = transitionScenarioState(scenario, state, {
+      id: "question-1",
+      type: "USER_QUESTION_CLASSIFIED",
+      categories: ["security"],
+    });
+
+    state = transitionScenarioState(scenario, state, {
+      id: "disclosed-1",
+      type: "FACT_DISCLOSED",
+      factId: "personal-information",
+      evidenceTurnId: "user-turn-1",
+    });
+
+    expect(state.factEvidenceTurnIds?.["personal-information"]).toBe("user-turn-1");
+  });
 });

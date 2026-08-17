@@ -141,16 +141,19 @@ export default function PracticePage() {
         aiSpeechIntervals: aiSpeechIntervalsRef.current,
       });
       await finishMediaPractice(currentSession.id, analysisInput);
+      const currentConversation = conversationRef.current;
       await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).savePracticeSession({
         id: currentSession.id,
         createdAt: new Date().toISOString(),
         scenarioId: currentSession.configuration.scenarioId,
+        scenarioVersion: currentSession.configuration.scenarioVersion,
         sceneId: currentSession.configuration.sceneId,
+        sceneVersion: currentSession.configuration.sceneVersion,
+        scenarioSnapshot: currentConversation?.definition,
         difficultyLevel: currentSession.configuration.difficultyLevel,
         clientTypeId: currentSession.configuration.clientTypeId,
         durationMinutes: currentSession.configuration.durationMinutes,
       });
-      const currentConversation = conversationRef.current;
       if (currentConversation) {
         await new IndexedDbRecordingRepository(new LocalPracticeDatabase()).saveConversation(currentSession.id, currentConversation.turns, currentConversation.state);
       }

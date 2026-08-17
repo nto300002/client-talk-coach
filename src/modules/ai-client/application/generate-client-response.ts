@@ -65,6 +65,7 @@ export class GenerateClientResponse {
         id: `disclosed:${input.userTurn.id}:${factId}`,
         type: "FACT_DISCLOSED",
         factId,
+        evidenceTurnId: input.userTurn.id,
       });
     }
 

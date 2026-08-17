@@ -10,6 +10,7 @@ import { generateConversationFeedback, type ConversationFeedback } from "@/modul
 import type { SelfReview } from "@/modules/self-review/domain/self-review";
 import { IndexedDbRecordingRepository, LocalPracticeDatabase } from "@/modules/local-recording/infrastructure/indexeddb-recording-repository";
 import { technicalMvpScenarioFixtures } from "@/scenarios/technical-mvp";
+import { resolveEvaluationDefinition } from "@/modules/scenario-evaluation/application/resolve-evaluation-definition";
 
 type ResultData = { review: SelfReview; evaluation: ScenarioEvaluation; feedback: ConversationFeedback };
 
@@ -20,10 +21,12 @@ export default function ResultsPage() {
     const session = getStoredSession();
     if (!session) { void Promise.resolve(null).then(setResult); return; }
     const repository = new IndexedDbRecordingRepository(new LocalPracticeDatabase());
-    void Promise.all([repository.findSelfReview(session.id), repository.findConversation(session.id)]).then(async ([review, conversation]) => {
-      const definition = technicalMvpScenarioFixtures.find((scenario) => scenario.id === session.configuration.scenarioId);
+    void Promise.all([repository.findSelfReview(session.id), repository.findConversation(session.id), repository.findPracticeSession(session.id)]).then(async ([review, conversation, storedSession]) => {
+      const definition = storedSession
+        ? resolveEvaluationDefinition(storedSession, technicalMvpScenarioFixtures)
+        : technicalMvpScenarioFixtures.find((scenario) => scenario.id === session.configuration.scenarioId);
       if (!review || !definition || !conversation) { setResult(null); return; }
-      const evaluation = evaluateScenario(definition, conversation.scenarioState);
+      const evaluation = evaluateScenario(definition, conversation.scenarioState, {}, session.configuration.sceneId);
       const analysis = analyzeConversation(conversation.turns);
       const feedback = generateConversationFeedback(evaluation, analysis, session.configuration.focusSkillId);
       await Promise.all([
@@ -41,7 +44,7 @@ export default function ResultsPage() {
 }
 
 function ResultList({ facts, empty }: { facts: ScenarioEvaluation["capturedFacts"]; empty: string }) {
-  return facts.length ? <ul>{facts.map((fact) => <li key={fact.id}>{fact.label}</li>)}</ul> : <p>{empty}</p>;
+  return facts.length ? <ul>{facts.map((fact) => <li key={fact.id}>{fact.label}{fact.evidenceId ? <small>（根拠発話: {fact.evidenceId}）</small> : null}</li>)}</ul> : <p>{empty}</p>;
 }
 
 function getStoredSession(): PracticeSession | null {
